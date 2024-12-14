@@ -7,7 +7,7 @@ export default function StatePage() {
     const [events, setEvents] = useState<GameEvent[]>([]);
 
     useEffect(() => {
-        const eventSource = new EventSource('/api/events/stream');
+        const eventSource = new EventSource('http://localhost:8080/state');
 
         eventSource.onmessage = (event) => {
             setEvents(JSON.parse(event.data));

@@ -1,13 +1,17 @@
 'use client';
 
-import {VisionEvent} from "@/lib/types";
+import {BallEvent, Player} from "@/lib/types";
 
 export default function SimulatorPage() {
-    const sendEvent = async (type: VisionEvent) => {
-        await fetch('/api/events', {
+    const sendEvent = async (event: BallEvent, player?: Player) => {
+        await fetch('http://localhost:8080/event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, timestamp: Date.now() }),
+            body: JSON.stringify({
+                event,
+                player,
+                timestamp: Date.now()
+            })
         });
     };
 
@@ -18,39 +22,27 @@ export default function SimulatorPage() {
                 <div>
                     <h2 className="font-bold mb-2">Player A</h2>
                     <button
-                        onClick={() => sendEvent(VisionEvent.RACKET_A)}
+                        onClick={() => sendEvent(BallEvent.RACKET, Player.A)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Racket A
                     </button>
                     <button
-                        onClick={() => sendEvent(VisionEvent.BOARD_A)}
+                        onClick={() => sendEvent(BallEvent.BOARD, Player.A)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Board A
                     </button>
-                    <button
-                        onClick={() => sendEvent(VisionEvent.EDGE_A)}
-                        className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
-                    >
-                        Edge A
-                    </button>
-                    <button
-                        onClick={() => sendEvent(VisionEvent.CLIP_A)}
-                        className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
-                    >
-                        Clip A
-                    </button>
                 </div>
                 <div>
                     <button
-                        onClick={() => sendEvent(VisionEvent.NET)}
+                        onClick={() => sendEvent(BallEvent.NET)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Net
                     </button>
                     <button
-                        onClick={() => sendEvent(VisionEvent.OUT)}
+                        onClick={() => sendEvent(BallEvent.OUT)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Out
@@ -59,28 +51,16 @@ export default function SimulatorPage() {
                 <div>
                     <h2 className="font-bold mb-2">Player B</h2>
                     <button
-                        onClick={() => sendEvent(VisionEvent.RACKET_B)}
+                        onClick={() => sendEvent(BallEvent.RACKET, Player.B)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Racket B
                     </button>
                     <button
-                        onClick={() => sendEvent(VisionEvent.BOARD_B)}
+                        onClick={() => sendEvent(BallEvent.BOARD, Player.B)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Board B
-                    </button>
-                    <button
-                        onClick={() => sendEvent(VisionEvent.EDGE_B)}
-                        className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
-                    >
-                        Edge B
-                    </button>
-                    <button
-                        onClick={() => sendEvent(VisionEvent.CLIP_B)}
-                        className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
-                    >
-                        Clip B
                     </button>
                 </div>
             </div>
