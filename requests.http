@@ -1,0 +1,12 @@
+### Get State
+GET http://localhost:8080/state
+
+### Post Events
+POST http://localhost:8080/event
+Content-Type: application/json
+
+{
+  "eventType": "Racket",
+  "player": "A",
+  "timestamp": 1702569432000
+}
