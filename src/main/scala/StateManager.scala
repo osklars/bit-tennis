@@ -3,18 +3,19 @@ import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
 
-class StateManager[F[_] : Concurrent]
-(
-  state: Ref[F, GameState],
-  updates: Topic[F, GameState]
-):
+class StateManager[F[_] : Concurrent](
+                                       state: Ref[F, List[GameState]],
+                                       updates: Topic[F, List[GameState]]
+                                     ):
   def process(event: GameEvent): F[GameState] = for
-    currentState <- state.get
+    states <- state.get
+    currentState = states.headOption.getOrElse(GameState.initial(Player.A))
     newState = currentState.process(event)
-    _ <- state.set(newState)
-    _ <- updates.publish1(newState)
+    newHistory = (newState :: states).take(5)  // Keep last 5 states
+    _ <- state.set(newHistory)
+    _ <- updates.publish1(newHistory)
   yield newState
 
-  def getState: F[GameState] = state.get
+  def getState: F[GameState] = state.get.map(_.head)
 
-  def subscribe: Stream[F, GameState] = updates.subscribe(10)
+  def subscribe: Stream[F, List[GameState]] = updates.subscribe(10)

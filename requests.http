@@ -6,7 +6,7 @@ POST http://localhost:8080/event
 Content-Type: application/json
 
 {
-  "eventType": "Racket",
+  "event": "Racket",
   "player": "A",
   "timestamp": 1702569432000
 }

@@ -7,8 +7,8 @@ import org.http4s.ember.server.EmberServerBuilder
 object Main extends IOApp:
   def run(args: List[String]): IO[ExitCode] =
     for
-      updates <- Topic[IO, GameState]
-      state <- Ref.of[IO, GameState](GameState.initial(Player.A))
+      updates <- Topic[IO, List[GameState]]
+      state <- Ref.of[IO, List[GameState]](List(GameState.initial(Player.A)))
       manager = StateManager(state, updates)
       routes = Routes[IO](manager).routes
       _ <- EmberServerBuilder

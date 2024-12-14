@@ -13,7 +13,7 @@ enum RallyState derives ReadWriter:
 
 case class GameEvent
 (
-  eventType: BallEvent,
+  event: BallEvent,
   player: Player,
   timestamp: Long
 ) derives ReadWriter
@@ -22,7 +22,7 @@ case class GameState
 (
   rallyState: RallyState,
   server: Player,
-  toStrike: Player,
+  possession: Player, // a player has possession of the ball until it's the other players turn to hit it
   points: Map[Player, Int]
 ) derives ReadWriter:
   def process(event: GameEvent): GameState =
@@ -32,9 +32,9 @@ case class GameState
       case (RallyState.ServeRacket, GameEvent(BallEvent.Board, p, _)) if p == server =>
         copy(rallyState = RallyState.ServeOwnBoard)
       case (RallyState.ServeOwnBoard, GameEvent(BallEvent.Board, _, _)) =>
-        copy(rallyState = RallyState.ToStrike, toStrike = if server == Player.A then Player.B else Player.A)
-      case (RallyState.ToStrike, GameEvent(BallEvent.Racket, p, _)) if p == toStrike =>
-        copy(rallyState = RallyState.Racket, toStrike = if p == Player.A then Player.B else Player.A)
+        copy(rallyState = RallyState.ToStrike, possession = if server == Player.A then Player.B else Player.A)
+      case (RallyState.ToStrike, GameEvent(BallEvent.Racket, p, _)) if p == possession =>
+        copy(rallyState = RallyState.Racket, possession = if p == Player.A then Player.B else Player.A)
       // Add more cases...
       case _ => this
 
@@ -44,7 +44,7 @@ object GameState:
   def initial(server: Player) = GameState(
     rallyState = RallyState.ToServe,
     server = server,
-    toStrike = server,
+    possession = server,
     points = Map(Player.A -> 0, Player.B -> 0)
   )
 
