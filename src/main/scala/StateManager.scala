@@ -2,21 +2,29 @@ import cats.effect.{Concurrent, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
+import org.http4s.util.Writer
+import upickle.default.*
+
+case class GameHistory
+(
+  event: GameEvent,
+  state: GameState
+) derives ReadWriter
 
 class StateManager[F[_] : Concurrent]
 (
-  state: Ref[F, List[GameState]],
-  updates: Topic[F, List[GameState]]
+  state: Ref[F, GameState],
+  history: Ref[F, List[GameHistory]],
+  updates: Topic[F, List[GameHistory]]
 ):
   def process(event: GameEvent): F[GameState] = for
-    states <- state.get
-    currentState = states.headOption.getOrElse(GameState.initial(Player.A))
-    newState = currentState.process(event)
-    newHistory = (newState :: states).take(5) // Keep last 5 states
-    _ <- state.set(newHistory)
-    _ <- updates.publish1(newHistory)
+    current <- state.get
+    newState = current.process(event)
+    _ <- state.set(newState)
+    previous <- history.get
+    newHistory = GameHistory(event, newState) :: previous
+    _ <- history.set(newHistory)
+    _ <- updates.publish1(newHistory.take(5))
   yield newState
 
-  def getState: F[GameState] = state.get.map(_.head)
-
-  def subscribe: Stream[F, List[GameState]] = updates.subscribe(10)
+  def subscribe: Stream[F, List[GameHistory]] = updates.subscribe(10)
