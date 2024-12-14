@@ -1,14 +1,13 @@
-package com.example
-
-import cats.effect.{Ref, Concurrent}
+import cats.effect.{Concurrent, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
 
-class StateManager[F[_]: Concurrent](
-                                    state: Ref[F, GameState],
-                                    updates: Topic[F, GameState]
-                                  ):
+class StateManager[F[_] : Concurrent]
+(
+  state: Ref[F, GameState],
+  updates: Topic[F, GameState]
+):
   def process(event: GameEvent): F[GameState] = for
     currentState <- state.get
     newState = currentState.process(event)

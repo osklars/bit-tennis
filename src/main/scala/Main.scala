@@ -1,11 +1,8 @@
-package com.example
-
-import cats.effect.{IO, IOApp, ExitCode}
-import org.http4s.ember.server.EmberServerBuilder
-import fs2.concurrent.Topic
-import cats.effect.Ref
+import cats.effect.{ExitCode, IO, IOApp, Ref}
 import com.comcast.ip4s.*
+import fs2.concurrent.Topic
 import org.http4s.*
+import org.http4s.ember.server.EmberServerBuilder
 
 object Main extends IOApp:
   def run(args: List[String]): IO[ExitCode] =
