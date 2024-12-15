@@ -3,10 +3,13 @@ GET http://localhost:8080/state
 
 ### Post Events
 POST http://localhost:8080/event
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "event": "Racket",
+  "ballEvent": "Racket",
   "player": "A",
   "timestamp": 1702569432000
 }

@@ -2,7 +2,6 @@ import cats.effect.{Concurrent, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
-import org.http4s.util.Writer
 import upickle.default.*
 
 case class GameHistory
