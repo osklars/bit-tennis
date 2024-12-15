@@ -13,12 +13,6 @@ export default function SimulatorPage() {
         try {
             const response = await fetch('http://localhost:8080/event', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Origin: 'http://localhost:3000',
-                    'Access-Control-Request-Method': 'POST',
-                    'Access-Control-Request-Headers': 'Content-Type',
-                },
                 body,
             });
             console.log("oskar posted event", await response.json());
