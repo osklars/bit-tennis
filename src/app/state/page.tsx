@@ -24,7 +24,7 @@ export default function StatePage() {
                 <div className="space-y-2">
                     {history.map((h, i) => (
                         <div key={i} className="flex items-center space-x-2 text-sm">
-                            <span>{h.event.type}</span>
+                            <span>{h.event.ballEvent}</span>
                             <span className="text-gray-500">
                 {new Date(h.event.timestamp).toLocaleTimeString()}
               </span>

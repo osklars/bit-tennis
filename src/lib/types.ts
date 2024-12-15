@@ -12,7 +12,7 @@ export enum Player {
 }
 
 export type GameEvent = {
-    type: BallEvent;
+    ballEvent: BallEvent;
     player?: Player;
     timestamp: number;
 };
@@ -40,6 +40,6 @@ export enum RallyState {
 export type GameState = {
     points: Record<Player, number>,
     rallyState: RallyState,
-    player: Player, // a player owns the ball until the next player should hit it
+    possession: Player, // a player possesses the ball until the next player should hit it
     firstServer: Player,
 }

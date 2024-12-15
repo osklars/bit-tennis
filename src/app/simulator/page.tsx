@@ -1,11 +1,13 @@
 'use client';
 
-import {BallEvent, Player} from "@/lib/types";
+import {BallEvent, GameState, Player} from "@/lib/types";
+import {useState} from "react";
 
 export default function SimulatorPage() {
-    const sendEvent = async (event: BallEvent, player?: Player) => {
+    const [state, setState] = useState<GameState>()
+    const sendEvent = async (ballEvent: BallEvent, player?: Player) => {
         const body = JSON.stringify({
-            event,
+            ballEvent,
             player,
             timestamp: Date.now()
         })
@@ -15,7 +17,9 @@ export default function SimulatorPage() {
                 method: 'POST',
                 body,
             });
-            console.log("oskar posted event", await response.json());
+            const newState = await response.json()
+            console.log("oskar posted event", newState);
+            setState(newState);
         } catch (e) {
             console.log("exception", e)
         }
@@ -23,6 +27,7 @@ export default function SimulatorPage() {
 
     return (
         <div className="p-8">
+            <div><h2 className="font-bold mb-2">Current State: {JSON.stringify(state)}</h2></div>
             <h1 className="text-2xl font-bold mb-4">Vision Event Simulator</h1>
             <div className="grid grid-cols-2 gap-4">
                 <div>
