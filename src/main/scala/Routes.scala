@@ -29,7 +29,7 @@ class Routes(manager: StateManager[IO]) extends Http4sDsl[IO]:
             event <- req.as[GameEvent]
             _ <- IO.println(s"Incoming event: $event")
             state <- manager.process(event)
-            _ <- IO.println(s"New State: $state")
+            _ <- IO.println(s"Returning new State: ${write(state)}")
             resp <- Ok(state)
           yield resp
         )
@@ -37,7 +37,7 @@ class Routes(manager: StateManager[IO]) extends Http4sDsl[IO]:
       case GET -> Root / "state" =>
         val stream =
           (fs2.Stream.eval(manager.getHistory.map(_.take(5))) ++ manager.subscribe)
-            .evalMap(history => IO.println(s"streaming: $history").map(_ => history))
+            .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
             .map(history => s"data: ${write(history)}\n\n")
             .through(fs2.text.utf8.encode)
             .handleErrorWith { error =>

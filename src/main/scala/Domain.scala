@@ -1,4 +1,3 @@
-import Player.{A, B}
 import cats.effect.Concurrent
 import upickle.default.*
 
@@ -7,6 +6,8 @@ enum BallEvent derives ReadWriter:
 
 enum Player derives ReadWriter:
   case A, B
+
+case class Points(A: Int, B: Int) derives ReadWriter
 
 enum RallyState derives ReadWriter:
   case ToServe, ServeRacket, ServeOwnBoard, ServeNet, ServeBoard
@@ -21,10 +22,10 @@ case class GameEvent
 
 case class GameState
 (
-  rallyState: RallyState = RallyState.ToServe,
-  firstServer: Player = A,
-  possession: Player = A, // a player has possession of the ball until it's the other players turn to hit it
-  points: Map[Player, Int] = Map(A -> 0, B -> 0)
+  rallyState: RallyState,
+  firstServer: Player,
+  possession: Player, // a player has possession of the ball until it's the other players turn to hit it
+  points: Points,
 ) derives ReadWriter:
   def process(event: GameEvent): GameState =
     (rallyState, event) match
@@ -46,7 +47,7 @@ object GameState:
     rallyState = RallyState.ToServe,
     firstServer = server,
     possession = server,
-    points = Map(Player.A -> 0, Player.B -> 0)
+    points = Points(0, 0),
   )
 
 object Codecs:
