@@ -4,15 +4,27 @@ import {BallEvent, Player} from "@/lib/types";
 
 export default function SimulatorPage() {
     const sendEvent = async (event: BallEvent, player?: Player) => {
-        await fetch('http://localhost:8080/event', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                event,
-                player,
-                timestamp: Date.now()
-            })
-        });
+        const body = JSON.stringify({
+            event,
+            player,
+            timestamp: Date.now()
+        })
+        console.log("oskar posting event", body);
+        try {
+            const response = await fetch('http://localhost:8080/event', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Origin: 'http://localhost:3000',
+                    'Access-Control-Request-Method': 'POST',
+                    'Access-Control-Request-Headers': 'Content-Type',
+                },
+                body,
+            });
+            console.log("oskar posted event", await response.json());
+        } catch (e) {
+            console.log("exception", e)
+        }
     };
 
     return (
@@ -22,13 +34,13 @@ export default function SimulatorPage() {
                 <div>
                     <h2 className="font-bold mb-2">Player A</h2>
                     <button
-                        onClick={() => sendEvent(BallEvent.RACKET, Player.A)}
+                        onClick={() => sendEvent(BallEvent.Racket, Player.A)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Racket A
                     </button>
                     <button
-                        onClick={() => sendEvent(BallEvent.BOARD, Player.A)}
+                        onClick={() => sendEvent(BallEvent.Board, Player.A)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Board A
@@ -36,13 +48,13 @@ export default function SimulatorPage() {
                 </div>
                 <div>
                     <button
-                        onClick={() => sendEvent(BallEvent.NET)}
+                        onClick={() => sendEvent(BallEvent.Net)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Net
                     </button>
                     <button
-                        onClick={() => sendEvent(BallEvent.OUT)}
+                        onClick={() => sendEvent(BallEvent.Out)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Out
@@ -51,13 +63,13 @@ export default function SimulatorPage() {
                 <div>
                     <h2 className="font-bold mb-2">Player B</h2>
                     <button
-                        onClick={() => sendEvent(BallEvent.RACKET, Player.B)}
+                        onClick={() => sendEvent(BallEvent.Racket, Player.B)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Racket B
                     </button>
                     <button
-                        onClick={() => sendEvent(BallEvent.BOARD, Player.B)}
+                        onClick={() => sendEvent(BallEvent.Board, Player.B)}
                         className="w-full mb-2 bg-blue-500 text-white px-4 py-2 rounded"
                     >
                         Board B

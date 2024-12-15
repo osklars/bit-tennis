@@ -1,9 +1,9 @@
 // Events
 export enum BallEvent {
-    RACKET = 'RACKET',
-    BOARD = 'BOARD',
-    NET = 'NET',
-    OUT = 'OUT',
+    Racket = 'Racket',
+    Board = 'Board',
+    Net = 'Net',
+    Out = 'Out',
 }
 
 export enum Player {
@@ -17,19 +17,24 @@ export type GameEvent = {
     timestamp: number;
 };
 
+export type GameHistory = {
+    event: GameEvent;
+    state: GameState;
+}
+
 // State: Latest ball event gives name
 export enum RallyState {
     // Serve states
-    TO_SERVE = 'TO_SERVE',
-    SERVE_RACKET = 'SERVE_RACKET',
-    SERVE_OWN_BOARD = 'SERVE_OWN_BOARD',
-    SERVE_NET = 'SERVE_NET',
-    SERVE_BOARD = 'SERVE_BOARD',
+    ToServe = 'ToServe',
+    ServeRacket = 'ServeRacket',
+    ServeOwnBoard = 'ServeOwnBoard',
+    ServeNet = 'ServeNet',
+    ServeBoard = 'ServeBoard',
     // Return states
-    TO_STRIKE = 'TO_STRIKE',
-    RACKET = 'RACKET',
-    NET = 'NET',
-    BOARD = 'BOARD',
+    ToStrike = 'ToStrike',
+    Racket = 'Racket',
+    Net = 'Net',
+    Board = 'Board',
 }
 
 export type GameState = {
