@@ -11,7 +11,6 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-ember-server" % Http4sVersion,
       "org.http4s" %% "http4s-ember-client" % Http4sVersion,
       "org.http4s" %% "http4s-dsl" % Http4sVersion,
-      "com.lihaoyi" %% "upickle" % "4.0.2",
-      "ch.qos.logback" % "logback-classic" % "1.5.12",
+      "com.lihaoyi" %% "upickle" % "4.0.2"
     )
   )
