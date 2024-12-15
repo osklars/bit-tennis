@@ -1,3 +1,4 @@
+import Player.{A, B}
 import cats.effect.Concurrent
 import upickle.default.*
 
@@ -20,10 +21,10 @@ case class GameEvent
 
 case class GameState
 (
-  rallyState: RallyState,
-  firstServer: Player,
-  possession: Player, // a player has possession of the ball until it's the other players turn to hit it
-  points: Map[Player, Int]
+  rallyState: RallyState = RallyState.ToServe,
+  firstServer: Player = A,
+  possession: Player = A, // a player has possession of the ball until it's the other players turn to hit it
+  points: Map[Player, Int] = Map(A -> 0, B -> 0)
 ) derives ReadWriter:
   def process(event: GameEvent): GameState =
     (rallyState, event) match

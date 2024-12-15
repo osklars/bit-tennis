@@ -25,5 +25,7 @@ class StateManager[F[_] : Concurrent]
     _ <- history.set(newHistory)
     _ <- updates.publish1(newHistory.take(5))
   yield newState
+  
+  def getHistory: F[List[GameHistory]] = history.get
 
   def subscribe: Stream[F, List[GameHistory]] = updates.subscribe(10)

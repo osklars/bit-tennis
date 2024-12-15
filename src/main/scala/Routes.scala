@@ -35,16 +35,17 @@ class Routes(manager: StateManager[IO]) extends Http4sDsl[IO]:
         )
 
       case GET -> Root / "state" =>
-        val stream = manager.subscribe
-          .evalMap(history => IO.println(s"streaming: $history").map(_ => history))
-          .map(history => s"data: ${write(history)}\n\n")
-          .through(fs2.text.utf8.encode)
-          .handleErrorWith { error =>
-            fs2.Stream.eval(
-              IO.println(s"Stream error: ${error.getMessage}")
-            ) *>
-              fs2.Stream.empty
-          }
+        val stream =
+          (fs2.Stream.eval(manager.getHistory.map(_.take(5))) ++ manager.subscribe)
+            .evalMap(history => IO.println(s"streaming: $history").map(_ => history))
+            .map(history => s"data: ${write(history)}\n\n")
+            .through(fs2.text.utf8.encode)
+            .handleErrorWith { error =>
+              fs2.Stream.eval(
+                IO.println(s"Stream error: ${error.getMessage}")
+              ) *>
+                fs2.Stream.empty
+            }
 
         Ok(stream).map(_.withHeaders(
           `Content-Type`(MediaType.`text/event-stream`),
