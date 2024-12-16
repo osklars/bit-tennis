@@ -1,31 +1,37 @@
-import cats.effect.{Concurrent, Ref}
+import cats.effect.{IO, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
+import model.api.NewMatch
+import model.{GameEvent, MatchState}
 import upickle.default.*
 
-case class GameHistory
+case class StateHistory
 (
   event: GameEvent,
-  state: GameState
-) derives ReadWriter
+  state: MatchState
+)derives ReadWriter
 
-class StateManager[F[_] : Concurrent]
+class StateManager
 (
-  state: Ref[F, GameState],
-  history: Ref[F, List[GameHistory]],
-  updates: Topic[F, List[GameHistory]]
+  state: Ref[IO, Option[MatchState]],
+  history: Ref[IO, List[StateHistory]],
+  updates: Topic[IO, List[StateHistory]]
 ):
-  def process(event: GameEvent): F[GameState] = for
-    current <- state.get
-    newState = current.process(event)
-    _ <- state.set(newState)
-    previous <- history.get
-    newHistory = GameHistory(event, newState) :: previous
-    _ <- history.set(newHistory)
-    _ <- updates.publish1(newHistory.take(5))
-  yield newState
-  
-  def getHistory: F[List[GameHistory]] = history.get
+  def newMatch(input: NewMatch) =
+    state.set(Some(MatchState.newMatch(input)))
 
-  def subscribe: Stream[F, List[GameHistory]] = updates.subscribe(10)
+  def process(event: GameEvent): IO[MatchState] =
+    for
+      current <- state.get
+      newState <- current.map(_.process(event)).liftTo[IO](Exception("No ongoing match"))
+      _ <- state.set(Some(newState))
+      previous <- history.get
+      newHistory = StateHistory(event, newState) :: previous
+      _ <- history.set(newHistory)
+      _ <- updates.publish1(newHistory.take(5))
+    yield newState
+
+  def getHistory: IO[List[StateHistory]] = history.get
+
+  def subscribe: Stream[IO, List[StateHistory]] = updates.subscribe(10)

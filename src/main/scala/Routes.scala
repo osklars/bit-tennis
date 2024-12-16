@@ -1,5 +1,7 @@
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplyOps
+import model.api.{ErrorResponse, NewMatch}
+import model.{GameEvent}
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.CORS
@@ -7,7 +9,7 @@ import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
 import org.typelevel.ci.CIStringSyntax
 import upickle.default.*
 
-class Routes(manager: StateManager[IO]) extends Http4sDsl[IO]:
+class Routes(manager: StateManager) extends Http4sDsl[IO]:
 
   import Codecs.*
 
@@ -18,21 +20,25 @@ class Routes(manager: StateManager[IO]) extends Http4sDsl[IO]:
         InternalServerError(write(ErrorResponse(errorMessage)))
     }
 
-  // Custom error response class
-  case class ErrorResponse(error: String)derives ReadWriter
 
   val routes: HttpRoutes[IO] = CORS.policy
     .withAllowOriginAll(HttpRoutes.of[IO] {
+      case req@POST -> Root / "new" =>
+        handleError(for
+          input <- req.as[NewMatch]
+          _ <- IO.println(s"Starting new match: $input")
+          state <- manager.newMatch(input)
+          resp <- Ok(state)
+        yield resp)
+
       case req@POST -> Root / "event" =>
-        handleError(
-          for
-            event <- req.as[GameEvent]
-            _ <- IO.println(s"Incoming event: $event")
-            state <- manager.process(event)
-            _ <- IO.println(s"Returning new State: ${write(state)}")
-            resp <- Ok(state)
-          yield resp
-        )
+        handleError(for
+          event <- req.as[GameEvent]
+          _ <- IO.println(s"Incoming event: $event")
+          state <- manager.process(event)
+          _ <- IO.println(s"Returning new State: ${write(state)}")
+          resp <- Ok(state)
+        yield resp)
 
       case GET -> Root / "state" =>
         val stream =
