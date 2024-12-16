@@ -9,4 +9,4 @@ case class NewMatch
   playerB: String,
   bestOf: Int,
   firstServer: Player
-)derives ReadWriter
+) derives ReadWriter

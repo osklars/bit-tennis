@@ -1,6 +1,6 @@
 package model
 
-import upickle.default.ReadWriter
+import upickle.default.*
 
 enum Player derives ReadWriter:
   case A, B

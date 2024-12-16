@@ -10,7 +10,7 @@ case class StateHistory
 (
   event: GameEvent,
   state: MatchState
-)derives ReadWriter
+) derives ReadWriter
 
 class StateManager
 (

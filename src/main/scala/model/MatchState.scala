@@ -1,6 +1,5 @@
 package model
 
-import model.RallyState.Idle
 import model.api.NewMatch
 import upickle.default.*
 
@@ -15,7 +14,7 @@ case class MatchState
   bestOf: Int,
   set: SetState,
   winner: Option[Player],
-)derives ReadWriter:
+) derives ReadWriter:
   def process(event: GameEvent): MatchState = set.process(event) match {
     case SetState(_, p, _) if p.A + p.B >= bestOf =>
       copy(winner = Option(if (p.A > p.B) Player.A else Player.B))

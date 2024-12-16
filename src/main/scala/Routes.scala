@@ -20,7 +20,6 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
         InternalServerError(write(ErrorResponse(errorMessage)))
     }
 
-
   val routes: HttpRoutes[IO] = CORS.policy
     .withAllowOriginAll(HttpRoutes.of[IO] {
       case req@POST -> Root / "new" =>

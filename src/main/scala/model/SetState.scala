@@ -16,7 +16,7 @@ case class SetState
   game: GameState,
   points: Points,
   firstServer: Player
-)derives ReadWriter:
+) derives ReadWriter:
   def process(event: GameEvent): SetState = game.process(event) match {
     case GameState(_, _, p, _) if p.A >= 11 && p.A >= p.B + 2 => awardPoint(Player.A)
     case GameState(_, _, p, _) if p.B >= 11 && p.B >= p.A + 2 => awardPoint(Player.B)

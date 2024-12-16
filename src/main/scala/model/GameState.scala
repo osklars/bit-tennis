@@ -2,7 +2,7 @@ package model
 
 import model.BallEvent.*
 import model.RallyState.*
-import upickle.default.ReadWriter
+import upickle.default.*
 
 
 object GameState:
@@ -20,7 +20,7 @@ case class GameState
   possession: Player, // a player has possession of the ball until it's the other players turn to hit it
   points: Points,
   firstServer: Player,
-)derives ReadWriter:
+) derives ReadWriter:
   def process(event: GameEvent): GameState =
     (rallyState, event) match
       // serving
