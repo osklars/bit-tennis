@@ -25,5 +25,6 @@ Content-Type: application/json
   "playerA": "Oskar",
   "playerB": "Daniel",
   "bestOf": 3,
-  "firstServer": "A"
+  "firstServer": "A",
+  "timestamp": 1702569432000
 }

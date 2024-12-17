@@ -1,6 +1,7 @@
 package model
 
 import model.RallyState.*
+import model.api.DetectionEvent
 import upickle.default.*
 
 case object SetState:
@@ -17,7 +18,7 @@ case class SetState
   points: Points,
   firstServer: Player
 ) derives ReadWriter:
-  def process(event: GameEvent): SetState = game.process(event) match {
+  def process(event: DetectionEvent): SetState = game.process(event) match {
     case GameState(_, _, p, _) if p.A >= 11 && p.A >= p.B + 2 => awardPoint(Player.A)
     case GameState(_, _, p, _) if p.B >= 11 && p.B >= p.A + 2 => awardPoint(Player.B)
     case g => copy(game = g)

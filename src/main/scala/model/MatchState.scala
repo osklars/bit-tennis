@@ -1,6 +1,6 @@
 package model
 
-import model.api.NewMatch
+import model.api.{DetectionEvent, NewMatch}
 import upickle.default.*
 
 object MatchState:
@@ -15,7 +15,7 @@ case class MatchState
   set: SetState,
   winner: Option[Player],
 ) derives ReadWriter:
-  def process(event: GameEvent): MatchState = set.process(event) match {
+  def process(event: DetectionEvent): MatchState = set.process(event) match {
     case SetState(_, p, _) if p.A + p.B >= bestOf =>
       copy(winner = Option(if (p.A > p.B) Player.A else Player.B))
     case set => copy(set = set)

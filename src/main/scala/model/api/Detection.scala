@@ -1,7 +1,7 @@
-package model
+package model.api
 
 import upickle.default.*
 
-enum BallEvent derives ReadWriter:
+enum Detection derives ReadWriter:
   case Throw, ExitTable, Net // only relevant for serves
   case Racket, Board, Out

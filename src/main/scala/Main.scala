@@ -1,8 +1,8 @@
-import scala. concurrent. duration. DurationInt
+import scala.concurrent.duration.DurationInt
 import cats.effect.{ExitCode, IO, IOApp, Ref}
 import com.comcast.ip4s.*
 import fs2.concurrent.Topic
-import model.MatchState
+import model.{MatchState, StateHistory}
 import org.http4s.*
 import org.http4s.ember.server.EmberServerBuilder
 

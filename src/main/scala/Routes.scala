@@ -1,7 +1,6 @@
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplyOps
-import model.api.{ErrorResponse, NewMatch}
-import model.GameEvent
+import model.api.{ErrorResponse, DetectionEvent, NewMatch}
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.{CORS, ErrorHandling}
@@ -31,7 +30,7 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
 
       case req@POST -> Root / "event" =>
         handleError(for
-          event <- req.as[GameEvent]
+          event <- req.as[DetectionEvent]
           _ <- IO.println(s"Incoming event: $event")
           state <- manager.process(event)
           _ <- IO.println(s"Returning new State: ${write(state)}")

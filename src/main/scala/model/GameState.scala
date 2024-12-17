@@ -1,7 +1,8 @@
 package model
 
-import model.BallEvent.*
+import model.api.Detection.*
 import model.RallyState.*
+import model.api.{Detection, DetectionEvent}
 import upickle.default.*
 
 
@@ -21,33 +22,33 @@ case class GameState
   points: Points,
   firstServer: Player,
 ) derives ReadWriter:
-  def process(event: GameEvent): GameState =
+  def process(event: DetectionEvent): GameState =
     (rallyState, event) match
       // serving
-      case (_, GameEvent(Throw, Some(this.possession), _)) => copy(ToServe)
+      case (_, DetectionEvent(Throw, Some(this.possession), _)) => copy(ToServe)
 
-      case (ToServe, GameEvent(Racket, Some(this.possession), _)) => copy(ToBounce1)
+      case (ToServe, DetectionEvent(Racket, Some(this.possession), _)) => copy(ToBounce1)
       case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
 
-      case (ToBounce1, GameEvent(Board, Some(this.possession), _)) => copy(ToBounce2)
+      case (ToBounce1, DetectionEvent(Board, Some(this.possession), _)) => copy(ToBounce2)
       case (ToBounce1, _) => awardPoint(possession.opponent)
 
-      case (ToBounce2, GameEvent(Board, Some(possession.opponent), _)) => copy(ToStrike, possession.opponent)
-      case (ToBounce2, GameEvent(Racket, Some(possession.opponent), _)) => awardPoint(possession)
-      case (ToBounce2, GameEvent(Net, _, _)) => copy(NetServe)
+      case (ToBounce2, DetectionEvent(Board, Some(possession.opponent), _)) => copy(ToStrike, possession.opponent)
+      case (ToBounce2, DetectionEvent(Racket, Some(possession.opponent), _)) => awardPoint(possession)
+      case (ToBounce2, DetectionEvent(Net, _, _)) => copy(NetServe)
       case (ToBounce2, _) => awardPoint(possession.opponent)
 
-      case (NetServe, GameEvent(Board, Some(possession.opponent), _)) => copy(Idle)
-      case (NetServe, GameEvent(Net, _, _)) => this
+      case (NetServe, DetectionEvent(Board, Some(possession.opponent), _)) => copy(Idle)
+      case (NetServe, DetectionEvent(Net, _, _)) => this
       case (NetServe, _) => awardPoint(possession.opponent)
 
       // returning
-      case (ToStrike, GameEvent(BallEvent.Racket, Some(this.possession), _)) => copy(ToBounce, possession)
+      case (ToStrike, DetectionEvent(Detection.Racket, Some(this.possession), _)) => copy(ToBounce, possession)
       case (ToStrike, _) => awardPoint(possession.opponent)
 
-      case (ToBounce, GameEvent(BallEvent.Board, Some(possession.opponent), _)) => copy(ToStrike, possession.opponent)
-      case (ToBounce, GameEvent(Racket, Some(possession.opponent), _)) => awardPoint(possession)
-      case (ToBounce, GameEvent(Net, _, _)) => this
+      case (ToBounce, DetectionEvent(Detection.Board, Some(possession.opponent), _)) => copy(ToStrike, possession.opponent)
+      case (ToBounce, DetectionEvent(Racket, Some(possession.opponent), _)) => awardPoint(possession)
+      case (ToBounce, DetectionEvent(Net, _, _)) => this
       case (ToBounce, _) => awardPoint(possession.opponent)
 
       case _ => copy(Error(s"Unhandled case $this $event"))
