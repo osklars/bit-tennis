@@ -1,10 +1,10 @@
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplyOps
 import model.api.{ErrorResponse, NewMatch}
-import model.{GameEvent}
+import model.GameEvent
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
-import org.http4s.server.middleware.CORS
+import org.http4s.server.middleware.{CORS, ErrorHandling}
 import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
 import org.typelevel.ci.CIStringSyntax
 import upickle.default.*
@@ -19,9 +19,8 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
       IO.println(errorMessage) *>
         InternalServerError(write(ErrorResponse(errorMessage)))
     }
-
-  val routes: HttpRoutes[IO] = CORS.policy
-    .withAllowOriginAll(HttpRoutes.of[IO] {
+    
+  private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
       case req@POST -> Root / "new" =>
         handleError(for
           input <- req.as[NewMatch]
@@ -57,4 +56,6 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
           Header.Raw(ci"Cache-Control", "no-cache"),
           Header.Raw(ci"Connection", "keep-alive")
         ))
-    })
+    }
+  private val handledRoutes = ErrorHandling.httpRoutes(routes)
+  val corsRoutes = CORS.policy.withAllowOriginAll(handledRoutes)

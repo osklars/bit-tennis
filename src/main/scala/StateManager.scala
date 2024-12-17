@@ -18,13 +18,16 @@ class StateManager
   history: Ref[IO, List[StateHistory]],
   updates: Topic[IO, List[StateHistory]]
 ):
-  def newMatch(input: NewMatch) =
-    state.set(Some(MatchState.newMatch(input)))
+  def newMatch(input: NewMatch): IO[MatchState] =
+    val m = MatchState.newMatch(input)
+    for
+      _ <- state.set(Some(m))
+    yield m
 
   def process(event: GameEvent): IO[MatchState] =
     for
-      current <- state.get
-      newState <- current.map(_.process(event)).liftTo[IO](Exception("No ongoing match"))
+      current <- state.get.flatMap(_.liftTo[IO](Exception("No ongoing match")))
+      newState = current.process(event)
       _ <- state.set(Some(newState))
       previous <- history.get
       newHistory = StateHistory(event, newState) :: previous

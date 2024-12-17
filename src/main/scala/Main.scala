@@ -16,7 +16,7 @@ object Main extends IOApp:
         .default[IO]
         .withPort(port"8080")
         .withHost(host"0.0.0.0")
-        .withHttpApp(Routes(StateManager(state, history, updates)).routes.orNotFound)
+        .withHttpApp(Routes(StateManager(state, history, updates)).corsRoutes.orNotFound)
         .build
         .use(_ => IO.never)
         .handleErrorWith { error =>

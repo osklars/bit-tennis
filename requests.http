@@ -9,7 +9,21 @@ Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "ballEvent": "Racket",
+  "ballEvent": "Throw",
   "player": "A",
   "timestamp": 1702569432000
+}
+
+### Post New Match
+POST http://localhost:8080/new
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
+Content-Type: application/json
+
+{
+  "playerA": "Oskar",
+  "playerB": "Daniel",
+  "bestOf": 3,
+  "firstServer": "A"
 }
