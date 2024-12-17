@@ -15,7 +15,7 @@ class StateManager
     val m = MatchState.newMatch(input)
     for
       _ <- state.set(Some(m))
-      _ <- updateHistory(InputEvent(ManualInput.NewMatch, None, input.timestamp), m)
+      _ <- updateHistory(GameEvent(None, Some(InputEvent(ManualInput.NewMatch, None, input.timestamp))), m)
     yield m
 
   def process(event: DetectionEvent): IO[MatchState] =
@@ -23,7 +23,7 @@ class StateManager
       current <- state.get.flatMap(_.liftTo[IO](Exception("No ongoing match")))
       newState = current.process(event)
       _ <- state.set(Some(newState))
-      _ <- updateHistory(event, newState)
+      _ <- updateHistory(GameEvent(Some(event), None), newState)
     yield newState
     
   def updateHistory(event: GameEvent, newState: MatchState): IO[List[StateHistory]] =

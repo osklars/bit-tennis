@@ -9,7 +9,7 @@ Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "ballEvent": "Throw",
+  "detection": "Throw",
   "player": "A",
   "timestamp": 1702569432000
 }
