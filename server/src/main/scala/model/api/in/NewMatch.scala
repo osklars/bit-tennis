@@ -1,6 +1,6 @@
-package model.api
+package model.api.in
 
-import model.Player
+import model.types.Player
 import upickle.default.*
 
 case class NewMatch

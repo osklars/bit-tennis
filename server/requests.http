@@ -1,5 +1,5 @@
 ### Get State
-GET http://localhost:8080/state
+GET http://localhost:8080/history
 
 ### Post Events
 POST http://localhost:8080/event
@@ -9,9 +9,9 @@ Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "detection": "Throw",
+  "detection": "Racket",
   "player": "A",
-  "timestamp": 1702569432000
+  "timestamp": 1702569432003
 }
 
 ### Post New Match
@@ -26,5 +26,5 @@ Content-Type: application/json
   "playerB": "Daniel",
   "bestOf": 3,
   "firstServer": "A",
-  "timestamp": 1702569432000
+  "timestamp": 1702569432002
 }

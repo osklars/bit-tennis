@@ -21,7 +21,7 @@ POST `/event` - send detected events
 }
 ```
 
-GET `/state` - stream state updates with history
+GET `/history` - stream state updates with history
 ```json
 [
   {

@@ -1,27 +1,24 @@
-package model
+package model.pingis
 
-import model.api.Detection.*
-import model.RallyState.*
-import model.api.{Detection, DetectionEvent}
-import upickle.default.*
+import model.types.RallyState.*
+import model.api.in.DetectionEvent
+import model.types.Detection.*
+import model.types.{Detection, Player, Points, RallyState}
 
-
-object GameState:
-  def withFirstServer(firstServer: Player) =
+case object GameState:
+  def apply(firstServer: Player): GameState =
     GameState(
-      rallyState = Idle,
       possession = firstServer,
-      points = Points(0, 0),
       firstServer = firstServer,
     )
 
 case class GameState
 (
-  rallyState: RallyState,
-  possession: Player, // a player has possession of the ball until it's the other players turn to hit it
-  points: Points,
-  firstServer: Player,
-) derives ReadWriter:
+  rallyState: RallyState = Idle,
+  possession: Player = Player.A, // a player has possession of the ball until it's the other players turn to hit it
+  points: Points = Points(0, 0),
+  firstServer: Player = Player.A,
+):
   def process(event: DetectionEvent): GameState =
     (rallyState, event) match
       // serving

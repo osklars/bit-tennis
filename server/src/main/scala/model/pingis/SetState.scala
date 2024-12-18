@@ -1,23 +1,22 @@
-package model
+package model.pingis
 
-import model.RallyState.*
-import model.api.DetectionEvent
+import model.api.in.DetectionEvent
+import model.types.{Player, Points, RallyState}
 import upickle.default.*
 
 case object SetState:
-  def withFirstServer(firstServer: Player): SetState =
+  def apply(firstServer: Player): SetState =
     SetState(
-      GameState.withFirstServer(firstServer),
-      Points(0, 0),
-      firstServer,
+      GameState(firstServer),
+      firstServer = firstServer,
     )
 
 case class SetState
 (
   game: GameState,
-  points: Points,
-  firstServer: Player
-) derives ReadWriter:
+  points: Points = Points(0, 0),
+  firstServer: Player,
+):
   def process(event: DetectionEvent): SetState = game.process(event) match {
     case GameState(_, _, p, _) if p.A >= 11 && p.A >= p.B + 2 => awardPoint(Player.A)
     case GameState(_, _, p, _) if p.B >= 11 && p.B >= p.A + 2 => awardPoint(Player.B)
@@ -27,7 +26,7 @@ case class SetState
   private def awardPoint(player: Player): SetState = {
     val newFirstServer = firstServer.opponent
     SetState(
-      game = GameState(Idle, newFirstServer, Points(0, 0), firstServer),
+      game = GameState(RallyState.Idle, newFirstServer, Points(0, 0), firstServer),
       points = points.inc(player),
       firstServer = newFirstServer,
     )

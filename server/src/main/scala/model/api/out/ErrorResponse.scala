@@ -1,4 +1,4 @@
-package model.api
+package model.api.out
 
 import upickle.default.*
 

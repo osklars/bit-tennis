@@ -1,14 +1,15 @@
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplyOps
-import model.api.{ErrorResponse, DetectionEvent, NewMatch}
+import model.api.in.{DetectionEvent, NewMatch}
+import model.api.out.ErrorResponse
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.{CORS, ErrorHandling}
-import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
+import org.http4s.{EntityEncoder, Header, Http, HttpRoutes, MediaType, Response}
 import org.typelevel.ci.CIStringSyntax
 import upickle.default.*
 
-class Routes(manager: StateManager) extends Http4sDsl[IO]:
+class Routes(service: StateService) extends Http4sDsl[IO]:
 
   import Codecs.*
 
@@ -24,7 +25,7 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
         handleError(for
           input <- req.as[NewMatch]
           _ <- IO.println(s"Starting new match: $input")
-          state <- manager.newMatch(input)
+          state <- service.newMatch(input)
           resp <- Ok(state)
         yield resp)
 
@@ -32,14 +33,14 @@ class Routes(manager: StateManager) extends Http4sDsl[IO]:
         handleError(for
           event <- req.as[DetectionEvent]
           _ <- IO.println(s"Incoming event: $event")
-          state <- manager.process(event)
+          state <- service.process(event)
           _ <- IO.println(s"Returning new State: ${write(state)}")
           resp <- Ok(state)
         yield resp)
 
-      case GET -> Root / "state" =>
+      case GET -> Root / "history" =>
         val stream =
-          (fs2.Stream.eval(manager.getHistory.map(_.take(5))) ++ manager.subscribe)
+          (fs2.Stream.eval(service.getLatest()) ++ service.subscribe)
             .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
             .map(history => s"data: ${write(history)}\n\n")
             .through(fs2.text.utf8.encode)
