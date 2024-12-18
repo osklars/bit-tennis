@@ -5,7 +5,7 @@ import upickle.default.*
 
 object MatchState:
   def newMatch(input: NewMatch): MatchState =
-    MatchState(input.playerA, input.playerB, input.bestOf, SetState.withFirstServer(input.firstServer), None)
+    MatchState(input.playerA, input.playerB, input.bestOf, SetState.withFirstServer(input.firstServer))
 
 case class MatchState
 (
@@ -13,10 +13,5 @@ case class MatchState
   playerB: String,
   bestOf: Int,
   set: SetState,
-  winner: Option[Player],
 ) derives ReadWriter:
-  def process(event: DetectionEvent): MatchState = set.process(event) match {
-    case SetState(_, p, _) if p.A + p.B >= bestOf =>
-      copy(winner = Option(if (p.A > p.B) Player.A else Player.B))
-    case set => copy(set = set)
-  }
+  def process(event: DetectionEvent): MatchState = copy(set = set.process(event))
