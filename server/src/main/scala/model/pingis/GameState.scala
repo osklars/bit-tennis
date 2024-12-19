@@ -1,8 +1,8 @@
 package model.pingis
 
-import model.types.RallyState.*
 import model.api.in.DetectionEvent
 import model.types.Detection.*
+import model.types.RallyState.*
 import model.types.{Detection, Player, Points, RallyState}
 
 case object GameState:

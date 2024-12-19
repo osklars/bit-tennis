@@ -7,7 +7,6 @@ import model.InternalState
 import model.api.in.{DetectionEvent, NewMatch}
 import model.api.out.StateSummary
 import model.pingis.MatchState
-import model.types.ManualInput
 import upickle.default.*
 
 import java.time.format.DateTimeFormatter

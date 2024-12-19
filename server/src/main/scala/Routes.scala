@@ -19,43 +19,43 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
       IO.println(errorMessage) *>
         InternalServerError(write(ErrorResponse(errorMessage)))
     }
-    
+
   private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-      case req@POST -> Root / "new" =>
-        handleError(for
-          input <- req.as[NewMatch]
-          _ <- IO.println(s"Starting new match: $input")
-          state <- service.newMatch(input)
-          resp <- Ok(state)
-        yield resp)
+    case req@POST -> Root / "new" =>
+      handleError(for
+        input <- req.as[NewMatch]
+        _ <- IO.println(s"Starting new match: $input")
+        state <- service.newMatch(input)
+        resp <- Ok(state)
+      yield resp)
 
-      case req@POST -> Root / "event" =>
-        handleError(for
-          event <- req.as[DetectionEvent]
-          _ <- IO.println(s"Incoming event: $event")
-          state <- service.process(event)
-          _ <- IO.println(s"Returning new State: ${write(state)}")
-          resp <- Ok(state)
-        yield resp)
+    case req@POST -> Root / "event" =>
+      handleError(for
+        event <- req.as[DetectionEvent]
+        _ <- IO.println(s"Incoming event: $event")
+        state <- service.process(event)
+        _ <- IO.println(s"Returning new State: ${write(state)}")
+        resp <- Ok(state)
+      yield resp)
 
-      case GET -> Root / "history" =>
-        val stream =
-          (fs2.Stream.eval(service.getLatest()) ++ service.subscribe)
-            .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
-            .map(history => s"data: ${write(history)}\n\n")
-            .through(fs2.text.utf8.encode)
-            .handleErrorWith { error =>
-              fs2.Stream.eval(
-                IO.println(s"Stream error: ${error.getMessage}")
-              ) *>
-                fs2.Stream.empty
-            }
+    case GET -> Root / "history" =>
+      val stream =
+        (fs2.Stream.eval(service.getLatest()) ++ service.subscribe)
+          .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
+          .map(history => s"data: ${write(history)}\n\n")
+          .through(fs2.text.utf8.encode)
+          .handleErrorWith { error =>
+            fs2.Stream.eval(
+              IO.println(s"Stream error: ${error.getMessage}")
+            ) *>
+              fs2.Stream.empty
+          }
 
-        Ok(stream).map(_.withHeaders(
-          `Content-Type`(MediaType.`text/event-stream`),
-          Header.Raw(ci"Cache-Control", "no-cache"),
-          Header.Raw(ci"Connection", "keep-alive")
-        ))
-    }
+      Ok(stream).map(_.withHeaders(
+        `Content-Type`(MediaType.`text/event-stream`),
+        Header.Raw(ci"Cache-Control", "no-cache"),
+        Header.Raw(ci"Connection", "keep-alive")
+      ))
+  }
   private val handledRoutes = ErrorHandling.httpRoutes(routes)
   val corsRoutes = CORS.policy.withAllowOriginAll(handledRoutes)
