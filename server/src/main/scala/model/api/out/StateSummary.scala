@@ -7,8 +7,7 @@ import upickle.default.*
 
 case class StateSummary
 (
-  timestamp: Long,
-  event: Either[DetectionEvent, NewMatch],
+  event: DetectionEvent,
   rallyState: RallyState,
   possession: Player,
   gamePoints: Points,
@@ -18,7 +17,6 @@ case class StateSummary
 object StateSummary:
   def apply(state: InternalState): StateSummary =
     StateSummary(
-      timestamp = state.timestamp,
       event = state.event,
       rallyState = state.matchState.set.game.rallyState,
       possession = state.matchState.set.game.possession,

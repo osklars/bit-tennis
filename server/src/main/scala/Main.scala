@@ -12,13 +12,14 @@ import scala.concurrent.duration.DurationInt
 object Main extends IOApp:
   def server: IO[ExitCode] =
     for
+      state <- Ref.of[IO, MatchState](MatchState())
       history <- Ref.of[IO, List[InternalState]](List.empty)
       updates <- Topic[IO, List[StateSummary]]
       _ <- EmberServerBuilder
         .default[IO]
         .withPort(port"8080")
         .withHost(host"0.0.0.0")
-        .withHttpApp(Routes(StateService(history, updates)).corsRoutes.orNotFound)
+        .withHttpApp(Routes(StateService(state, history, updates)).corsRoutes.orNotFound)
         .build
         .use(_ => IO.never)
         .handleErrorWith { error =>
