@@ -10,8 +10,8 @@ export default function State() {
         const eventSource = new EventSource('http://localhost:8080/state');
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            console.log("oskar updated history", data);
-            setHistory([data, ...history].slice(0, 5));
+            console.log("oskar updating history", data);
+            setHistory(old => [data, ...old].slice(0, 5));
         };
 
         return () => eventSource.close();
