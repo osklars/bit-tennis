@@ -51,10 +51,10 @@ case class GameState
 
   private def awardPoint(player: Player): GameState = {
     val newPoints = points.inc(player)
-    GameState(
+    println(s"what the ${List((newPoints.A + newPoints.B) % 4, (newPoints.A + newPoints.B % 4) < 2, newPoints)}")
+    copy(
       rallyState = Idle,
-      possession = if (newPoints.A + newPoints.B % 4 < 2) firstServer else firstServer.opponent,
+      possession = if ((newPoints.A + newPoints.B) % 4 < 2) firstServer else firstServer.opponent,
       points = newPoints,
-      firstServer,
     )
   }

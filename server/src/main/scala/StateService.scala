@@ -25,6 +25,7 @@ class StateService
       _ <- IO.println("handling event", current, event)
       newState <- current.process(event)
         .liftTo[IO](new Exception(s"Unhandled event: $event with state ${current.set.game}"))
+      _ <- IO.println("got new state", newState)
       _ <- state.set(newState)
       summary = StateSummary(event, newState)
       _ <- updates.publish1(summary)
