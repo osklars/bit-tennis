@@ -27,7 +27,9 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
         result <- service.process(event)
           .map(Right.apply)
           .recover {
-            case i: InvalidEvent => Left(i)
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
           }
         resp <- result match
           case Left(value) => Accepted(value)
