@@ -2,6 +2,7 @@ import cats.effect.{IO, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
+import model.InvalidEvent
 import model.api.in.{Event, NewMatch}
 import model.api.out.StateSummary
 import model.pingis.MatchState
@@ -24,7 +25,7 @@ class StateService
       current <- state.get
       _ <- IO.println("handling event", current, event)
       newState <- current.process(event)
-        .liftTo[IO](new Exception(s"Unhandled event: $event with state ${current.set.game}"))
+        .liftTo[IO](InvalidEvent(event, StateSummary(current)))
       _ <- IO.println("got new state", newState)
       _ <- state.set(newState)
       summary = StateSummary(event, newState)

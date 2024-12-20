@@ -1,5 +1,6 @@
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplyOps
+import model.InvalidEvent
 import model.api.in.{Event, NewMatch}
 import model.api.out.ErrorResponse
 import org.http4s.dsl.Http4sDsl
@@ -13,30 +14,27 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
 
   import Codecs.*
 
-  private def handleError[A](io: IO[Response[IO]]): IO[Response[IO]] =
-    io.handleErrorWith { error =>
-      val errorMessage = s"An error occurred: ${error.getMessage}"
-      IO.println(errorMessage) *>
-        InternalServerError(write(ErrorResponse(errorMessage)))
-    }
-
   private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case req@POST -> Root / "new" =>
-      handleError(for
+      for
         input <- req.as[NewMatch]
         _ <- IO.println(s"Starting new match: $input")
         state <- service.newMatch(input)
         resp <- Ok(state)
-      yield resp)
+      yield resp
 
     case req@POST -> Root / "event" =>
-      handleError(for
+      for
         event <- req.as[Event]
-        _ <- IO.println(s"Incoming event: $event")
-        state <- service.process(event)
-        _ <- IO.println(s"Returning new State: ${write(state)}")
-        resp <- Ok(state)
-      yield resp)
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent => Left(i)
+          }
+        resp <- result match
+          case Left(value) => Ok(value)
+          case Right(value) => Ok(value)
+      yield resp
 
     case GET -> Root / "state" =>
       val stream =
@@ -44,12 +42,6 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
           .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
           .map(history => s"data: ${write(history)}\n\n")
           .through(fs2.text.utf8.encode)
-          .handleErrorWith { error =>
-            fs2.Stream.eval(
-              IO.println(s"Stream error: ${error.getMessage}")
-            ) *>
-              fs2.Stream.empty
-          }
 
       Ok(stream).map(_.withHeaders(
         `Content-Type`(MediaType.`text/event-stream`),
