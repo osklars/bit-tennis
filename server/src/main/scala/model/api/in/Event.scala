@@ -6,5 +6,5 @@ import upickle.default.*
 case class Event
 (
   event: EventType,
-  player: Option[Player]
+  player: Option[Player],
 ) derives ReadWriter

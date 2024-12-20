@@ -1,6 +1,5 @@
 package model.api.out
 
-import model.InternalState
 import model.api.in.{Event, NewMatch}
 import model.pingis.MatchState
 import model.types.{Player, Points, RallyState}

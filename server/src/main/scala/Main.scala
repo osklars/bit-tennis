@@ -1,7 +1,6 @@
 import cats.effect.{ExitCode, IO, IOApp, Ref}
 import com.comcast.ip4s.*
 import fs2.concurrent.Topic
-import model.InternalState
 import model.api.out.StateSummary
 import model.pingis.MatchState
 import org.http4s.*
