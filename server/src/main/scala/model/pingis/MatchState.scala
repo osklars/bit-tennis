@@ -15,4 +15,6 @@ case class MatchState
   bestOf: Int = 3,
   set: SetState = SetState(Player.A),
 ):
-  def process(event: Event): MatchState = copy(set = set.process(event))
+  def process(event: Event): Option[MatchState] = 
+    set.process(event)
+      .map(newSet => copy(set = newSet))

@@ -19,8 +19,8 @@ case class GameState
   points: Points = Points(0, 0),
   firstServer: Player = Player.A,
 ):
-  def process(event: Event): GameState =
-    (rallyState, event) match
+  def process(event: Event): Option[GameState] =
+    Option(rallyState, event).collect {
       // serving
       case (_, Event(Throw, Some(this.possession))) => copy(ToServe)
 
@@ -47,8 +47,7 @@ case class GameState
       case (ToBounce, Event(Racket, Some(possession.opponent))) => awardPoint(possession)
       case (ToBounce, Event(Net, _)) => this
       case (ToBounce, _) => awardPoint(possession.opponent)
-
-      case _ => copy(Error(s"Unhandled case $this $event"))
+    }
 
   private def awardPoint(player: Player): GameState =
     GameState(

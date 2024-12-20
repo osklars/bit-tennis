@@ -17,7 +17,7 @@ case class SetState
   points: Points = Points(0, 0),
   firstServer: Player,
 ):
-  def process(event: Event): SetState = game.process(event) match {
+  def process(event: Event): Option[SetState] = game.process(event).map {
     case GameState(_, _, p, _) if p.A >= 11 && p.A >= p.B + 2 => awardPoint(Player.A)
     case GameState(_, _, p, _) if p.B >= 11 && p.B >= p.A + 2 => awardPoint(Player.B)
     case g => copy(game = g)

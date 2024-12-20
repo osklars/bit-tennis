@@ -1,17 +1,10 @@
 import cats.effect.{IO, Ref}
 import cats.syntax.all.*
+import fs2.Stream
 import fs2.concurrent.Topic
-import fs2.io.file.{Files, Path}
-import fs2.{Chunk, Stream, text}
-import model.InternalState
 import model.api.in.{Event, NewMatch}
 import model.api.out.StateSummary
 import model.pingis.MatchState
-import model.types.EventType
-import upickle.default.*
-
-import java.time.format.DateTimeFormatter
-import java.time.{Instant, ZoneId}
 
 class StateService
 (
@@ -30,9 +23,10 @@ class StateService
     for
       current <- state.get
       _ <- IO.println("handling event", current, event)
-      newState = current.process(event)
+      newState <- current.process(event)
+        .liftTo[IO](new Exception("Unhandled event"))
       _ <- state.set(newState)
-      summary = StateSummary(event, newState) 
+      summary = StateSummary(event, newState)
       _ <- updates.publish1(summary)
     yield summary
 
