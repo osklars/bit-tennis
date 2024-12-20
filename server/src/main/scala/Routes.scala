@@ -5,7 +5,7 @@ import model.api.out.ErrorResponse
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.{CORS, ErrorHandling}
-import org.http4s.{EntityEncoder, Header, Http, HttpRoutes, MediaType, Response}
+import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
 import org.typelevel.ci.CIStringSyntax
 import upickle.default.*
 
@@ -38,7 +38,7 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
         resp <- Ok(state)
       yield resp)
 
-    case GET -> Root / "history" =>
+    case GET -> Root / "state" =>
       val stream =
         (fs2.Stream.eval(service.getState) ++ service.subscribe)
           .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
@@ -57,5 +57,6 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
         Header.Raw(ci"Connection", "keep-alive")
       ))
   }
-  private val handledRoutes = ErrorHandling.httpRoutes(routes)
-  val corsRoutes = CORS.policy.withAllowOriginAll(handledRoutes)
+
+  val corsRoutes: HttpRoutes[IO] = CORS.policy
+    .withAllowOriginAll(ErrorHandling.httpRoutes(routes))
