@@ -49,10 +49,12 @@ case class GameState
       case (ToBounce, _) => awardPoint(possession.opponent)
     }
 
-  private def awardPoint(player: Player): GameState =
+  private def awardPoint(player: Player): GameState = {
+    val newPoints = points.inc(player)
     GameState(
       rallyState = Idle,
-      possession = if (points.A + points.B % 4 < 2) firstServer else firstServer.opponent,
-      points = points.inc(player),
+      possession = if (newPoints.A + newPoints.B % 4 < 2) firstServer else firstServer.opponent,
+      points = newPoints,
       firstServer,
     )
+  }

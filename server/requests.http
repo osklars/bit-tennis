@@ -10,8 +10,7 @@ Content-Type: application/json
 
 {
   "event": "Racket",
-  "player": "A",
-  "timestamp": 1702569432003
+  "player": "A"
 }
 
 ### Post New Match
@@ -25,6 +24,5 @@ Content-Type: application/json
   "playerA": "Oskar",
   "playerB": "Daniel",
   "bestOf": 3,
-  "firstServer": "A",
-  "timestamp": 1702569432002
+  "firstServer": "A"
 }
