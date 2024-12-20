@@ -8,6 +8,5 @@ case class NewMatch
   playerA: String,
   playerB: String,
   bestOf: Int,
-  firstServer: Player,
-  timestamp: Long,
+  firstServer: Player
 ) derives ReadWriter

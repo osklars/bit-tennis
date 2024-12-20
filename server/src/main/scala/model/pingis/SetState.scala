@@ -1,6 +1,6 @@
 package model.pingis
 
-import model.api.in.DetectionEvent
+import model.api.in.Event
 import model.types.{Player, Points, RallyState}
 import upickle.default.*
 
@@ -17,7 +17,7 @@ case class SetState
   points: Points = Points(0, 0),
   firstServer: Player,
 ):
-  def process(event: DetectionEvent): SetState = game.process(event) match {
+  def process(event: Event): SetState = game.process(event) match {
     case GameState(_, _, p, _) if p.A >= 11 && p.A >= p.B + 2 => awardPoint(Player.A)
     case GameState(_, _, p, _) if p.B >= 11 && p.B >= p.A + 2 => awardPoint(Player.B)
     case g => copy(game = g)

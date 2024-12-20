@@ -9,7 +9,7 @@ Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "detection": "Racket",
+  "event": "Racket",
   "player": "A",
   "timestamp": 1702569432003
 }

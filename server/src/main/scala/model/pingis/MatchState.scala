@@ -1,6 +1,6 @@
 package model.pingis
 
-import model.api.in.{DetectionEvent, NewMatch}
+import model.api.in.{Event, NewMatch}
 import model.types.Player
 import upickle.default.*
 
@@ -15,4 +15,4 @@ case class MatchState
   bestOf: Int = 3,
   set: SetState = SetState(Player.A),
 ):
-  def process(event: DetectionEvent): MatchState = copy(set = set.process(event))
+  def process(event: Event): MatchState = copy(set = set.process(event))

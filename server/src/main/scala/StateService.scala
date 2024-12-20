@@ -2,11 +2,12 @@ import cats.effect.{IO, Ref}
 import cats.syntax.all.*
 import fs2.concurrent.Topic
 import fs2.io.file.{Files, Path}
-import fs2.{Stream, text}
+import fs2.{Chunk, Stream, text}
 import model.InternalState
-import model.api.in.{DetectionEvent, NewMatch}
+import model.api.in.{Event, NewMatch}
 import model.api.out.StateSummary
 import model.pingis.MatchState
+import model.types.EventType
 import upickle.default.*
 
 import java.time.format.DateTimeFormatter
@@ -15,62 +16,28 @@ import java.time.{Instant, ZoneId}
 class StateService
 (
   state: Ref[IO, MatchState],
-  history: Ref[IO, List[InternalState]],
-  updates: Topic[IO, List[StateSummary]]
+  updates: Topic[IO, StateSummary]
 ):
-  def newMatch(input: NewMatch): IO[Int] =
+  def newMatch(input: NewMatch): IO[StateSummary] =
+    val newState = MatchState(input)
     for
-      list <- history.get
-      _ <- list.lastOption.map(toFile(_, list)).getOrElse(IO.unit)
-      _ <- updateHistory(List.empty)
-      _ <- state.set(MatchState(input))
-    yield list.size
+      _ <- state.set(newState)
+      summary = StateSummary(newState)
+      _ <- updates.publish1(summary)
+    yield summary
 
-  def process(event: DetectionEvent): IO[StateSummary] =
+  def process(event: Event): IO[StateSummary] =
     for
-      list <- history.get
-      _ <- IO.println("current", list.map(_.event.timestamp))
-      (subsequent, previous) = list.span(event.timestamp < _.event.timestamp)
-      newState <- previous.headOption
-        .map(_.matchState.process(event))
-        .map(InternalState(event, _))
-        .liftTo[IO](new Exception("No match in progress"))
-      (latestState, recalculated) = subsequent.reverse
-        .mapAccumulate(newState)((state, next) => {
-          val newState = InternalState(next.event, state.matchState.process(next.event))
-          (newState, newState)
-        })
-      _ <- updateHistory(recalculated ++ (newState :: previous))
-      _ <- state.set(latestState.matchState)
-    yield StateSummary(latestState)
+      current <- state.get
+      _ <- IO.println("handling event", current, event)
+      newState = current.process(event)
+      _ <- state.set(newState)
+      summary = StateSummary(event, newState) 
+      _ <- updates.publish1(summary)
+    yield summary
 
-  private def updateHistory(newHistory: List[InternalState]): IO[List[InternalState]] =
-    for
-      _ <- history.set(newHistory)
-      _ <- updates.publish1(newHistory.take(5).map(StateSummary.apply))
-    yield newHistory
+  def getState: IO[StateSummary] = state.get.map(StateSummary.apply)
 
-  def getLatest(): IO[List[StateSummary]] =
-    history
-      .get
-      .map(_.take(5).map(StateSummary.apply))
-
-  def subscribe: Stream[IO, List[StateSummary]] =
+  def subscribe: Stream[IO, StateSummary] =
     updates
-      .subscribe(10)
-
-  private def toFile(state: InternalState, states: List[InternalState]): IO[Unit] =
-    fs2.Stream.emits(states)
-      .map(StateSummary.apply)
-      .map(write(_))
-      .intersperse("\n")
-      .through(text.utf8.encode)
-      .through(Files[IO].writeAll(Path(s"${state.matchState.playerA}-${state.matchState.playerB}_${format(state.event.timestamp)}.txt")))
-      .compile.drain
-
-  def format(timestamp: Long): String =
-    val instant = Instant.ofEpochMilli(timestamp)
-    val formatter = DateTimeFormatter
-      .ofPattern("yyMMddHHmmss")
-      .withZone(ZoneId.systemDefault())
-    formatter.format(instant)
+      .subscribeUnbounded
