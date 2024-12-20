@@ -22,7 +22,7 @@ case class GameState
   def process(event: Event): Option[GameState] =
     Option(rallyState, event).collect {
       // serving
-      case (_, Event(Throw, Some(this.possession))) => copy(ToServe)
+      case (Idle, Event(Throw, Some(this.possession))) => copy(ToServe)
 
       case (ToServe, Event(Racket, Some(this.possession))) => copy(ToBounce1)
       case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
@@ -40,10 +40,10 @@ case class GameState
       case (NetServe, _) => awardPoint(possession.opponent)
 
       // returning
-      case (ToStrike, Event(EventType.Racket, Some(this.possession))) => copy(ToBounce, possession)
+      case (ToStrike, Event(Racket, Some(this.possession))) => copy(ToBounce, possession)
       case (ToStrike, _) => awardPoint(possession.opponent)
 
-      case (ToBounce, Event(EventType.Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
+      case (ToBounce, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
       case (ToBounce, Event(Racket, Some(possession.opponent))) => awardPoint(possession)
       case (ToBounce, Event(Net, _)) => this
       case (ToBounce, _) => awardPoint(possession.opponent)
