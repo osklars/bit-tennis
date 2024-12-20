@@ -1,0 +1,28 @@
+### Get State
+GET http://localhost:8080/state
+
+### Post Events
+POST http://localhost:8080/event
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
+Content-Type: application/json
+
+{
+  "event": "Racket",
+  "player": "A"
+}
+
+### Post New Match
+POST http://localhost:8080/new
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
+Content-Type: application/json
+
+{
+  "playerA": "Oskar",
+  "playerB": "Daniel",
+  "bestOf": 3,
+  "firstServer": "A"
+}
