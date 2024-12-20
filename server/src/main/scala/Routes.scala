@@ -30,7 +30,7 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
             case i: InvalidEvent => Left(i)
           }
         resp <- result match
-          case Left(value) => NotAcceptable(value)
+          case Left(value) => Accepted(value)
           case Right(value) => Ok(value)
       yield resp
 
