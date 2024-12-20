@@ -1,9 +1,7 @@
 // Events
-export enum BallEvent {
-    Racket = 'Racket',
-    Board = 'Board',
-    Net = 'Net',
-    Out = 'Out',
+export enum EventType {
+    Throw = 'Throw', ExitTable = 'ExitTable', Net = 'Net', // serves
+    Racket = 'Racket', Board = 'Board', Out = 'Out',
 }
 
 export enum Player {
@@ -11,35 +9,45 @@ export enum Player {
     B = 'B',
 }
 
-export type GameEvent = {
-    ballEvent: BallEvent;
-    player?: Player;
-    timestamp: number;
+export type Event = {
+    event: EventType,
+    player?: Player,
 };
 
-export type GameHistory = {
-    event: GameEvent;
-    state: GameState;
+export type NewMatch = {
+    playerA: string,
+    playerB: string,
+    bestOf: number,
+    firstServer: Player,
 }
+
 
 // State: Latest ball event gives name
 export enum RallyState {
     // Serve states
+    Idle = 'Idle',
     ToServe = 'ToServe',
-    ServeRacket = 'ServeRacket',
-    ServeOwnBoard = 'ServeOwnBoard',
-    ServeNet = 'ServeNet',
-    ServeBoard = 'ServeBoard',
+    ServeRacket = 'ToBounce1',
+    ServeOwnBoard = 'ToBounce2',
+    ServeNet = 'NetServe',
     // Return states
     ToStrike = 'ToStrike',
-    Racket = 'Racket',
-    Net = 'Net',
-    Board = 'Board',
+    Board = 'ToBounce',
 }
 
-export type GameState = {
-    points: Record<Player, number>,
+export type Points = {
+    A: number,
+    B: number,
+}
+
+export type StateSummary = {
+    latestEvent?: Event,
     rallyState: RallyState,
-    possession: Player, // a player possesses the ball until the next player should hit it
-    firstServer: Player,
+    possession: Player,
+    gamePoints: Points,
+    setPoints: Points,
+}
+
+export type ErrorResponse = {
+    error: string,
 }

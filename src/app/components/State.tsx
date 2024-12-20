@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {GameHistory} from '@/lib/types';
+import {useEffect, useState} from 'react';
+import {StateSummary} from '@/lib/types';
 
-export default function StatePage() {
-    const [history, setHistory] = useState<GameHistory[]>([]);
+export default function State() {
+    const [history, setHistory] = useState<StateSummary[]>([]);
 
     useEffect(() => {
         const eventSource = new EventSource('http://localhost:8080/state');
         eventSource.onmessage = (event) => {
-            console.log("oskar updated history", event.data);
-            setHistory(JSON.parse(event.data));
+            const data = JSON.parse(event.data);
+            console.log("oskar updated history", data);
+            setHistory([data, ...history].slice(0, 5));
         };
 
         return () => eventSource.close();
@@ -24,10 +25,8 @@ export default function StatePage() {
                 <div className="space-y-2">
                     {history.map((h, i) => (
                         <div key={i} className="flex items-center space-x-2 text-sm">
-                            <span>{h.event.ballEvent}</span>
-                            <span className="text-gray-500">
-                {new Date(h.event.timestamp).toLocaleTimeString()}
-              </span>
+                            <span>{h.latestEvent?.event} {h.latestEvent?.player}</span>
+                            <span>{h.rallyState} {h.possession} {h.gamePoints.A}:{h.gamePoints.B}</span>
                         </div>
                     ))}
                 </div>

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tree": "tree -I 'node_modules|.git|.idea|.next' --noreport -F --charset ascii > project-structure.txt"
   },
   "dependencies": {
     "ioredis": "^5.4.1",
