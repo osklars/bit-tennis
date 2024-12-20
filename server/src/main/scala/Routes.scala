@@ -1,8 +1,6 @@
 import cats.effect.IO
-import cats.implicits.catsSyntaxApplyOps
 import model.InvalidEvent
 import model.api.in.{Event, NewMatch}
-import model.api.out.ErrorResponse
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.{CORS, ErrorHandling}
@@ -32,7 +30,7 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
             case i: InvalidEvent => Left(i)
           }
         resp <- result match
-          case Left(value) => Ok(value)
+          case Left(value) => NotAcceptable(value)
           case Right(value) => Ok(value)
       yield resp
 
