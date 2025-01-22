@@ -53,7 +53,11 @@ case class GameState
     val newPoints = points.inc(player)
     copy(
       rallyState = Idle,
-      possession = if ((newPoints.A + newPoints.B) % 4 < 2) firstServer else firstServer.opponent,
+      possession =
+        if (newPoints.A + newPoints.B < 20)
+          if ((newPoints.A + newPoints.B) % 4 < 2) firstServer else firstServer.opponent
+        else
+          if ((newPoints.A + newPoints.B) % 2 == 0) firstServer else firstServer.opponent,
       points = newPoints,
     )
   }
