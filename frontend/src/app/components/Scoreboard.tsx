@@ -4,7 +4,7 @@ import React, {useEffect, useState} from 'react';
 import { StateSummary, Player } from '@/lib/types';
 
 const ServeIndicator = ({ active }: { active: boolean }) => (
-    <div className={`w-8 h-8 rounded-full border-4 border-white ${active ? 'bg-white' : ''}`} />
+    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
 );
 
 const PlayerScore = ({
@@ -23,12 +23,10 @@ const PlayerScore = ({
     <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white`}>
         <div className="text-3xl mb-8">{setScore}</div>
         <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
-        {isServing && (
-            <div className="flex gap-4">
-                <ServeIndicator active={true} />
-                <ServeIndicator active={isSecondServe} />
-            </div>
-        )}
+        <div className="flex gap-4">
+            <ServeIndicator active={isServing} />
+            <ServeIndicator active={isServing && isSecondServe} />
+        </div>
     </div>
 );
 
@@ -45,9 +43,12 @@ const Scoreboard = () => {
 
     if (!state) return null;
 
-    const isFirstServe = (state.gamePoints.A + state.gamePoints.B) % 4 < 2;
-    const isPlayerAServing = state.possession === Player.A && state.rallyState === 'Idle';
-    const isPlayerBServing = state.possession === Player.B && state.rallyState === 'Idle';
+    const isPlayerAServing = state.gamePoints.A + state.gamePoints.B < 20 ?
+        ((state.gamePoints.A + state.gamePoints.B) % 4 < 2) :
+        (state.gamePoints.A + state.gamePoints.B) % 2 == 0;
+    const isSecondServe =
+        (state.gamePoints.A + state.gamePoints.B < 20) &&
+        ((state.gamePoints.A + state.gamePoints.B) % 2 == 1);
 
     return (
         <div className="flex w-screen h-screen">
@@ -55,14 +56,14 @@ const Scoreboard = () => {
                 setScore={state.setPoints.A}
                 gameScore={state.gamePoints.A}
                 isServing={isPlayerAServing}
-                isSecondServe={!isFirstServe}
+                isSecondServe={isSecondServe}
                 bgColor="bg-red-600"
             />
             <PlayerScore
                 setScore={state.setPoints.B}
                 gameScore={state.gamePoints.B}
-                isServing={isPlayerBServing}
-                isSecondServe={!isFirstServe}
+                isServing={!isPlayerAServing}
+                isSecondServe={isSecondServe}
                 bgColor="bg-black"
             />
         </div>
