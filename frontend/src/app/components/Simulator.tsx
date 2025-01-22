@@ -26,7 +26,8 @@ export default function Simulator() {
     };
     
     return (
-        <div className="relative p-16"> {/* Added padding for out area */}
+        <div className="relative p-16 flex"> {/* Added padding for out area */}
+            <h1 className="text-2xl font-bold mb-4">Event Simulator</h1>
             {/* Out area */}
             <div
                 onClick={() => sendEvent(EventType.Out)}
@@ -98,6 +99,6 @@ export default function Simulator() {
                 </div>
             </div>
         </div>
-    
+
     );
 }

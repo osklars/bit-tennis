@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect, useState} from 'react';
-import {StateSummary} from '@/lib/types';
+import {Player, StateSummary} from '@/lib/types';
 
 export default function State() {
     const [history, setHistory] = useState<StateSummary[]>([]);
@@ -11,7 +11,7 @@ export default function State() {
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("oskar updating history", data);
-            setHistory(old => [data, ...old].slice(0, 5));
+            setHistory(old => [data, ...old].slice(0, 30));
         };
 
         return () => eventSource.close();
@@ -20,6 +20,7 @@ export default function State() {
     return (
         <div className="p-8">
             <h1 className="text-2xl font-bold mb-4">Game State</h1>
+            {history.length > 0 && <VisualState state={history[0]}/>}
             <div className="bg-white rounded-lg shadow p-4">
                 <h2 className="font-bold mb-2">Latest Events</h2>
                 <div className="space-y-2">
@@ -30,6 +31,33 @@ export default function State() {
                         </div>
                     ))}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function VisualState({state}: { state: StateSummary }) {
+
+    const isPlayerActive = (player: Player) => state.possession === player;
+
+    return (
+        <div className="p-8 space-y-8">
+            {/* Score Display */}
+            <div className="flex justify-center items-center gap-16">
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.A) ? 'text-blue-600' : ''}`}>
+                    {state.gamePoints.A}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.A})</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-400">vs</div>
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.B) ? 'text-red-600' : ''}`}>
+                    {state.gamePoints.B}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.B})</span>
+                </div>
+            </div>
+
+            {/* Rally State */}
+            <div className="text-center text-lg">
+                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.player || 'none'}
             </div>
         </div>
     );
