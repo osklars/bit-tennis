@@ -5,8 +5,8 @@ export enum EventType {
 }
 
 export enum Player {
-    A = 'A',
-    B = 'B',
+    Red = 'Red',
+    Black = 'Black',
 }
 
 export type Event = {
@@ -15,8 +15,8 @@ export type Event = {
 };
 
 export type NewMatch = {
-    playerA: string,
-    playerB: string,
+    playerRed: string,
+    playerBlack: string,
     bestOf: number,
     firstServer: Player,
 }
@@ -36,8 +36,8 @@ export enum RallyState {
 }
 
 export type Points = {
-    A: number,
-    B: number,
+    Red: number,
+    Black: number,
 }
 
 export type StateSummary = {

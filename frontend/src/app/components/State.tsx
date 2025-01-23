@@ -27,7 +27,7 @@ export default function State() {
                     {history.map((h, i) => (
                         <div key={i} className="flex items-center space-x-2 text-sm">
                             <span>{h.latestEvent?.event} {h.latestEvent?.player}</span>
-                            <span>{h.rallyState} {h.possession} {h.gamePoints.A}:{h.gamePoints.B}</span>
+                            <span>{h.rallyState} {h.possession} {h.gamePoints.Red}:{h.gamePoints.Black}</span>
                         </div>
                     ))}
                 </div>
@@ -44,14 +44,14 @@ function VisualState({state}: { state: StateSummary }) {
         <div className="p-8 space-y-8">
             {/* Score Display */}
             <div className="flex justify-center items-center gap-16">
-                <div className={`text-6xl font-bold ${isPlayerActive(Player.A) ? 'text-blue-600' : ''}`}>
-                    {state.gamePoints.A}
-                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.A})</span>
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Red) ? 'text-red-600' : ''}`}>
+                    {state.gamePoints.Red}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Red})</span>
                 </div>
                 <div className="text-2xl font-bold text-gray-400">vs</div>
-                <div className={`text-6xl font-bold ${isPlayerActive(Player.B) ? 'text-red-600' : ''}`}>
-                    {state.gamePoints.B}
-                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.B})</span>
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Black) ? 'text-black' : ''}`}>
+                    {state.gamePoints.Black}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Black})</span>
                 </div>
             </div>
 

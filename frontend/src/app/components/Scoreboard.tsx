@@ -43,25 +43,25 @@ const Scoreboard = () => {
 
     if (!state) return null;
 
-    const isPlayerAServing = state.gamePoints.A + state.gamePoints.B < 20 ?
-        ((state.gamePoints.A + state.gamePoints.B) % 4 < 2) :
-        (state.gamePoints.A + state.gamePoints.B) % 2 == 0;
+    const isPlayerAServing = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+        ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
+        (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
     const isSecondServe =
-        (state.gamePoints.A + state.gamePoints.B < 20) &&
-        ((state.gamePoints.A + state.gamePoints.B) % 2 == 1);
+        (state.gamePoints.Red + state.gamePoints.Black < 20) &&
+        ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
     return (
         <div className="flex w-screen h-screen">
             <PlayerScore
-                setScore={state.setPoints.A}
-                gameScore={state.gamePoints.A}
+                setScore={state.setPoints.Red}
+                gameScore={state.gamePoints.Red}
                 isServing={isPlayerAServing}
                 isSecondServe={isSecondServe}
                 bgColor="bg-red-600"
             />
             <PlayerScore
-                setScore={state.setPoints.B}
-                gameScore={state.gamePoints.B}
+                setScore={state.setPoints.Black}
+                gameScore={state.gamePoints.Black}
                 isServing={!isPlayerAServing}
                 isSecondServe={isSecondServe}
                 bgColor="bg-black"
