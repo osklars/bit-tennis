@@ -67,3 +67,8 @@ export enum InputAction {
     Increase = 'Increase',
     Decrease = 'Decrease',
 }
+
+export enum Side {
+    Left = 'Left',
+    Right = 'Right',
+}
