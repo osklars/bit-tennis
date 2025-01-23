@@ -44,10 +44,10 @@ export default function SetupForm() {
                     />
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 flex justify-center p-8 gap-4">
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center py-[25vh] gap-4">
                     <select
                         name="bestOf"
-                        className="p-2 border rounded"
+                        className="p-2 border rounded text-black"
                     >
                         <option value={1}>Best of 1</option>
                         <option value={3}>Best of 3</option>
@@ -55,12 +55,12 @@ export default function SetupForm() {
                     </select>
                     <select
                         name="firstServer"
-                        className="p-2 border rounded"
+                        className="p-2 border rounded text-black"
                     >
                         <option value={Player.Red}>Red serves first</option>
                         <option value={Player.Black}>Black serves first</option>
                     </select>
-                    <button type="submit" className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <button type="submit" className="p-2 bg-white rounded shadow hover:bg-gray-100 text-black">
                         Start Game
                     </button>
                 </div>
