@@ -1,6 +1,6 @@
 package model.api.out
 
-import model.api.in.{Event, Input, NewMatch}
+import model.api.in.{Event, Input}
 import model.pingis.MatchState
 import model.types.{Player, Points, RallyState}
 import upickle.default.*
@@ -16,6 +16,9 @@ case class StateSummary
   firstServer: Player,
   gamePoints: Points,
   setPoints: Points,
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
 ) derives ReadWriter
 
 object StateSummary:
@@ -27,6 +30,9 @@ object StateSummary:
       firstServer = matchState.set.game.firstServer,
       gamePoints = matchState.set.game.points,
       setPoints = matchState.set.points,
+      playerRed = matchState.playerRed,
+      playerBlack = matchState.playerBlack,
+      bestOf = matchState.bestOf,
     )
 
   def apply(event: Event, matchState: MatchState): StateSummary =

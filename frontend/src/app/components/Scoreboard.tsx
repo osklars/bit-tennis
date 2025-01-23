@@ -4,18 +4,21 @@ import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
 
-const ServeIndicator = ({ active }: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
+const ServeIndicator = ({active}: { active: boolean }) => (
+    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
-function PlayerScore({
-                         setScore,
-                         gameScore,
-                         isServing,
-                         isSecondServe,
-                         bgColor,
-                         player
-                     }: {
+function PlayerScore
+({
+     name,
+     setScore,
+     gameScore,
+     isServing,
+     isSecondServe,
+     bgColor,
+     player
+ }: {
+    name: string
     setScore: number
     gameScore: number
     isServing: boolean
@@ -27,7 +30,7 @@ function PlayerScore({
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
                 method: 'POST',
-                body: JSON.stringify({ action, player })
+                body: JSON.stringify({action, player})
             });
         } catch (e) {
             console.error("Input error:", e);
@@ -37,11 +40,12 @@ function PlayerScore({
     return (
         <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
+            <div className="text-5xl mb-8">{name}</div>
             <div className="text-3xl mb-8">{setScore}</div>
-            <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
+            <div style={{fontSize: '45vh', lineHeight: '45vh'}} className="font-bold mb-8">{gameScore}</div>
             <div className="flex gap-4">
-                <ServeIndicator active={isServing} />
-                <ServeIndicator active={isServing && isSecondServe} />
+                <ServeIndicator active={isServing}/>
+                <ServeIndicator active={isServing && isSecondServe}/>
             </div>
 
             {/* Clickable overlays */}
@@ -77,7 +81,7 @@ function Scoreboard() {
     const isSecondServe =
         (state.gamePoints.Red + state.gamePoints.Black < 20) &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
-    
+
     return (
         <div className="flex w-screen h-screen">
             <div className="absolute flex w-full justify-center py-16">
@@ -89,6 +93,7 @@ function Scoreboard() {
                 </Link>
             </div>
             <PlayerScore
+                name={state.playerRed}
                 setScore={state.setPoints.Red}
                 gameScore={state.gamePoints.Red}
                 isServing={(state.firstServer === Player.Red) === isFirstServer}
@@ -97,6 +102,7 @@ function Scoreboard() {
                 player={Player.Red}
             />
             <PlayerScore
+                name={state.playerBlack}
                 setScore={state.setPoints.Black}
                 gameScore={state.gamePoints.Black}
                 isServing={(state.firstServer === Player.Black) === isFirstServer}

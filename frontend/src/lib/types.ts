@@ -48,6 +48,9 @@ export type StateSummary = {
     firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
+    playerRed: string,
+    playerBlack: string,
+    bestOf: number,
 }
 
 export type ErrorResponse = {

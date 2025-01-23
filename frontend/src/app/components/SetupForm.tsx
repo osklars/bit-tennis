@@ -18,22 +18,13 @@ async function submitForm(formData: FormData) {
 }
 
 export default function SetupForm() {
-    const router = useRouter();
-    const [formData, setFormData] = useState<NewMatch>({
-        playerRed: '',
-        playerBlack: '',
-        bestOf: 3,
-        firstServer: Player.Red
-    });
-
     return (
         <form action={submitForm}>
             <div className="flex w-screen h-screen">
                 <div className="bg-red-600 w-1/2 h-full flex flex-col items-center justify-center text-white">
                     <input
+                        name="playerRed"
                         type="text"
-                        value={formData.playerRed}
-                        onChange={e => setFormData({...formData, playerRed: e.target.value})}
                         className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
                         placeholder="Red"
                     />
@@ -46,9 +37,8 @@ export default function SetupForm() {
 
                 <div className="bg-black w-1/2 h-full flex flex-col items-center justify-center text-white">
                     <input
+                        name="playerBlack"
                         type="text"
-                        value={formData.playerBlack}
-                        onChange={e => setFormData({...formData, playerBlack: e.target.value})}
                         className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
                         placeholder="Black"
                     />
@@ -56,8 +46,7 @@ export default function SetupForm() {
 
                 <div className="absolute bottom-0 left-0 right-0 flex justify-center p-8 gap-4">
                     <select
-                        value={formData.bestOf}
-                        onChange={e => setFormData({...formData, bestOf: parseInt(e.target.value)})}
+                        name="bestOf"
                         className="p-2 border rounded"
                     >
                         <option value={1}>Best of 1</option>
@@ -65,8 +54,7 @@ export default function SetupForm() {
                         <option value={5}>Best of 5</option>
                     </select>
                     <select
-                        value={formData.firstServer}
-                        onChange={e => setFormData({...formData, firstServer: e.target.value as Player})}
+                        name="firstServer"
                         className="p-2 border rounded"
                     >
                         <option value={Player.Red}>Red serves first</option>
