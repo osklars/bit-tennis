@@ -16,6 +16,7 @@ function PlayerScore
      gameScore,
      isServing,
      isSecondServe,
+     isTwoServesEach,
      bgColor,
      player
  }: {
@@ -24,6 +25,7 @@ function PlayerScore
     gameScore: number
     isServing: boolean
     isSecondServe: boolean
+    isTwoServesEach: boolean
     bgColor: string
     player: Player
 }) {
@@ -45,8 +47,8 @@ function PlayerScore
             <div className="text-[5vh]">{setScore}</div>
             <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
             <div className="flex gap-4">
-                <ServeIndicator active={isServing}/>
-                <ServeIndicator active={isServing && isSecondServe}/>
+                <ServeIndicator active={isServing && !isSecondServe}/>
+                {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
             </div>
 
             {/* Clickable overlays */}
@@ -76,11 +78,12 @@ function Scoreboard() {
 
     if (!state) return null;
 
-    const isFirstServer = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+    const isTwoServesEach = state.gamePoints.Red + state.gamePoints.Black < 20
+    const isFirstServer = isTwoServesEach ?
         ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
         (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
     const isSecondServe =
-        (state.gamePoints.Red + state.gamePoints.Black < 20) &&
+        isTwoServesEach &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
     const playerScores = {
@@ -90,6 +93,7 @@ function Scoreboard() {
             gameScore: state.gamePoints.Red,
             isServing: (state.firstServer === Player.Red) === isFirstServer,
             isSecondServe,
+            isTwoServesEach,
             bgColor:"bg-red-600",
             player: Player.Red,
         },
@@ -99,6 +103,7 @@ function Scoreboard() {
             gameScore: state.gamePoints.Black,
             isServing: (state.firstServer === Player.Black) === isFirstServer,
             isSecondServe,
+            isTwoServesEach,
             bgColor:"bg-black",
             player: Player.Black,
         }

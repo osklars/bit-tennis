@@ -59,7 +59,7 @@ package model.types
 import upickle.default.*
 
 enum InputAction derives ReadWriter:
-  case Increase, Decrease
+  case Increase, Decrease, Reset
 
 --- server/src/main/scala/model/types/EventType.scala ---
 
@@ -222,6 +222,7 @@ case class GameState
 package model.pingis
 
 import model.api.in.{Event, Input, NewMatch}
+import model.types.InputAction.Reset
 import model.types.Player
 import upickle.default.*
 
@@ -237,12 +238,11 @@ case class MatchState
   set: SetState = SetState(Player.Red),
 ):
   def process(event: Event): Option[MatchState] =
-    set.process(event)
-      .map(newSet => copy(set = newSet))
+    set.process(event).map(newSet => copy(set = newSet))
   
-  def process(input: Input): Option[MatchState] =
-    set.process(input)
-      .map(newSet => copy(set = newSet))
+  def process(input: Input): Option[MatchState] = input.action match
+    case Reset => Some(MatchState(set = SetState(input.player)))
+    case _ => set.process(input).map(newSet => copy(set = newSet))
 
 --- server/src/main/scala/model/api/out/InvalidInput.scala ---
 
@@ -498,9 +498,10 @@ export default function Setup() {
 import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
+import {Opponent} from "@/lib/utils";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
+    <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
 function PlayerScore
@@ -535,9 +536,9 @@ function PlayerScore
     return (
         <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-5xl">{name}</div>
-            <div className="text-3xl">{setScore}</div>
-            <div style={{fontSize: '45vh', lineHeight: '45vh'}} className="font-bold mb-8">{gameScore}</div>
+            <div className="text-[5vh]">{name}</div>
+            <div className="text-[5vh]">{setScore}</div>
+            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
             <div className="flex gap-4">
                 <ServeIndicator active={isServing}/>
                 <ServeIndicator active={isServing && isSecondServe}/>
@@ -577,33 +578,42 @@ function Scoreboard() {
         (state.gamePoints.Red + state.gamePoints.Black < 20) &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
+    const playerScores = {
+        Red: {
+            name: state.playerRed,
+            setScore: state.setPoints.Red,
+            gameScore: state.gamePoints.Red,
+            isServing: (state.firstServer === Player.Red) === isFirstServer,
+            isSecondServe,
+            bgColor:"bg-red-600",
+            player: Player.Red,
+        },
+        Black: {
+            name: state.playerBlack,
+            setScore: state.setPoints.Black,
+            gameScore: state.gamePoints.Black,
+            isServing: (state.firstServer === Player.Black) === isFirstServer,
+            isSecondServe,
+            bgColor:"bg-black",
+            player: Player.Black,
+        }
+    }
+
     return (
-        <div className="flex w-screen h-screen">
+        <div className="flex w-screen h-dvh">
             <div className="absolute flex w-full justify-center py-16">
                 <Link
                     href="/setup"
-                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
                 >
                     New Game
                 </Link>
             </div>
             <PlayerScore
-                name={state.playerRed}
-                setScore={state.setPoints.Red}
-                gameScore={state.gamePoints.Red}
-                isServing={(state.firstServer === Player.Red) === isFirstServer}
-                isSecondServe={isSecondServe}
-                bgColor="bg-red-600"
-                player={Player.Red}
+                {...playerScores[state.firstServer]}
             />
             <PlayerScore
-                name={state.playerBlack}
-                setScore={state.setPoints.Black}
-                gameScore={state.gamePoints.Black}
-                isServing={(state.firstServer === Player.Black) === isFirstServer}
-                isSecondServe={isSecondServe}
-                bgColor="bg-black"
-                player={Player.Black}
+                {...playerScores[Opponent(state.firstServer)]}
             />
         </div>
     );
@@ -658,10 +668,10 @@ export default function SetupForm() {
                     />
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 flex justify-center p-8 gap-4">
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center py-[25vh] gap-4">
                     <select
                         name="bestOf"
-                        className="p-2 border rounded"
+                        className="p-2 border rounded text-black"
                     >
                         <option value={1}>Best of 1</option>
                         <option value={3}>Best of 3</option>
@@ -669,12 +679,12 @@ export default function SetupForm() {
                     </select>
                     <select
                         name="firstServer"
-                        className="p-2 border rounded"
+                        className="p-2 border rounded text-black"
                     >
                         <option value={Player.Red}>Red serves first</option>
                         <option value={Player.Black}>Black serves first</option>
                     </select>
-                    <button type="submit" className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    <button type="submit" className="p-2 bg-white rounded shadow hover:bg-gray-100 text-black">
                         Start Game
                     </button>
                 </div>
@@ -923,6 +933,13 @@ export default function Home() {
             <Simulator />
         </div>
     )
+}
+--- frontend/src/lib/utils.ts ---
+
+import {Player} from "@/lib/types";
+
+export function Opponent(player: Player) {
+    return player === Player.Red ? Player.Black : Player.Red;
 }
 --- frontend/src/lib/types.ts ---
 
