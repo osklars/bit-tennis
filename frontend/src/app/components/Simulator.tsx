@@ -10,7 +10,7 @@ export default function Simulator() {
 
     const sendEvent = async (event: EventType, player?: Player) => {
         try {
-            const response = await fetch('http://localhost:8080/event', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
                 method: 'POST',
                 body: JSON.stringify({ event, player: player || null })
             });

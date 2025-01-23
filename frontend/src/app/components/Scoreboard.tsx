@@ -24,7 +24,7 @@ const PlayerScore = ({
 }) => {
     const sendInput = async (action: InputAction) => {
         try {
-            await fetch('http://localhost:8080/input', {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
                 method: 'POST',
                 body: JSON.stringify({ action, player })
             });
@@ -60,7 +60,7 @@ const Scoreboard = () => {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             setState(JSON.parse(event.data));
         };

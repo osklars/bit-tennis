@@ -137,11 +137,15 @@ case class SetState
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
-      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Red))
+      newGame(points.inc(Player.Red))
     case GameState(_, _, p, _) if p.Black >= 11 && p.Black >= p.Red + 2 =>
-      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Black))
+      newGame(points.inc(Player.Black))
     case g => copy(game = g)
   }
+
+  private def newGame(points: Points): SetState =
+    val nextServer = if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent
+    copy(game = GameState(nextServer), points = points)
   
 
 --- server/src/main/scala/model/pingis/GameState.scala ---
@@ -281,12 +285,15 @@ import upickle.default.*
 
 case class StateSummary
 (
+  // Only with vision
   latestEvent: Option[Event] = None,
-  latestInput: Option[Input] = None,
   rallyState: RallyState,
   possession: Player,
+  // Needed for UI
+  latestInput: Option[Input] = None,
+  firstServer: Player,
   gamePoints: Points,
-  setPoints: Points
+  setPoints: Points,
 ) derives ReadWriter
 
 object StateSummary:
@@ -295,6 +302,7 @@ object StateSummary:
     StateSummary(
       rallyState = matchState.set.game.rallyState,
       possession = matchState.set.game.possession,
+      firstServer = matchState.set.game.firstServer,
       gamePoints = matchState.set.game.points,
       setPoints = matchState.set.points,
     )
@@ -471,7 +479,7 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
 'use client'
 
 import React, {useEffect, useState} from 'react';
-import { StateSummary } from '@/lib/types';
+import {InputAction, Player, StateSummary} from '@/lib/types';
 
 const ServeIndicator = ({ active }: { active: boolean }) => (
     <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
@@ -482,29 +490,55 @@ const PlayerScore = ({
                          gameScore,
                          isServing,
                          isSecondServe,
-                         bgColor
+                         bgColor,
+                         player
                      }: {
     setScore: number
     gameScore: number
     isServing: boolean
     isSecondServe: boolean
     bgColor: string
-}) => (
-    <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white`}>
-        <div className="text-3xl mb-8">{setScore}</div>
-        <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
-        <div className="flex gap-4">
-            <ServeIndicator active={isServing} />
-            <ServeIndicator active={isServing && isSecondServe} />
+    player: Player
+}) => {
+    const sendInput = async (action: InputAction) => {
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
+                method: 'POST',
+                body: JSON.stringify({ action, player })
+            });
+        } catch (e) {
+            console.error("Input error:", e);
+        }
+    };
+
+    return (
+        <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white relative`}>
+            {/* Original content stays the same */}
+            <div className="text-3xl mb-8">{setScore}</div>
+            <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
+            <div className="flex gap-4">
+                <ServeIndicator active={isServing} />
+                <ServeIndicator active={isServing && isSecondServe} />
+            </div>
+
+            {/* Clickable overlays */}
+            <div
+                className="absolute top-0 left-0 w-full h-1/2 cursor-pointer hover:bg-white/10 active:bg-white/20 transition-colors"
+                onClick={() => sendInput(InputAction.Increase)}
+            />
+            <div
+                className="absolute bottom-0 left-0 w-full h-1/2 cursor-pointer hover:bg-white/10 active:bg-white/20 transition-colors"
+                onClick={() => sendInput(InputAction.Decrease)}
+            />
         </div>
-    </div>
-);
+    );
+};
 
 const Scoreboard = () => {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             setState(JSON.parse(event.data));
         };
@@ -513,28 +547,30 @@ const Scoreboard = () => {
 
     if (!state) return null;
 
-    const isPlayerAServing = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+    const isFirstServer = state.gamePoints.Red + state.gamePoints.Black < 20 ?
         ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
         (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
     const isSecondServe =
         (state.gamePoints.Red + state.gamePoints.Black < 20) &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
-
+    
     return (
         <div className="flex w-screen h-screen">
             <PlayerScore
                 setScore={state.setPoints.Red}
                 gameScore={state.gamePoints.Red}
-                isServing={isPlayerAServing}
+                isServing={(state.firstServer === Player.Red) === isFirstServer}
                 isSecondServe={isSecondServe}
                 bgColor="bg-red-600"
+                player={Player.Red}
             />
             <PlayerScore
                 setScore={state.setPoints.Black}
                 gameScore={state.gamePoints.Black}
-                isServing={!isPlayerAServing}
+                isServing={(state.firstServer === Player.Black) === isFirstServer}
                 isSecondServe={isSecondServe}
                 bgColor="bg-black"
+                player={Player.Black}
             />
         </div>
     );
@@ -552,7 +588,7 @@ export default function State() {
     const [history, setHistory] = useState<StateSummary[]>([]);
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("oskar updating history", data);
@@ -614,14 +650,14 @@ function VisualState({state}: { state: StateSummary }) {
 import {EventType, StateSummary, Player, ErrorResponse} from "@/lib/types";
 import {useState} from "react";
 
-const highlight = 'outline outline-4 outline-yellow-400';
+const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
 
 export default function Simulator() {
     const [state, setState] = useState<StateSummary | ErrorResponse>();
 
     const sendEvent = async (event: EventType, player?: Player) => {
         try {
-            const response = await fetch('http://localhost:8080/event', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
                 method: 'POST',
                 body: JSON.stringify({ event, player: player || null })
             });
@@ -648,36 +684,38 @@ export default function Simulator() {
             <button
                 onClick={() => sendEvent(EventType.Out)}
                 className={`mb-8 h-32 bg-gray-100 hover:bg-gray-200 rounded-lg ${
-                    isLatestEvent(EventType.Out) ? 'outline outline-4 outline-yellow-400' : ''
+                    isLatestEvent(EventType.Out) ? highlight : ''
                 }`}
             >
                 Out
             </button>
 
+            {/* Main content - added z-10 to stay above out area */}
             <div className="flex items-center justify-center gap-8">
                 <div className="flex items-center gap-4">
                     <span className="text-2xl font-bold">Red</span>
                     <div className="flex flex-col gap-2">
                         <Button
                             onClick={() => sendEvent(EventType.Throw, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
                             onClick={() => sendEvent(EventType.Racket, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
                     </div>
                 </div>
 
+                {/* Table */}
                 <div className="flex border-2 border-gray-400 rounded">
                     <button
                         onClick={() => sendEvent(EventType.Board, Player.Red)}
-                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 ${
-                            isLatestEvent(EventType.Board, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Player.Red) ? highlight : ''
                         }`}
                     >
                         Red Side
@@ -685,30 +723,31 @@ export default function Simulator() {
                     <button
                         onClick={() => sendEvent(EventType.Net)}
                         className={`w-4 h-32 bg-gray-300 hover:bg-gray-400 ${
-                            isLatestEvent(EventType.Net) ? 'outline outline-4 outline-yellow-400' : ''
+                            isLatestEvent(EventType.Net) ? highlight : ''
                         }`}
                     />
                     <button
                         onClick={() => sendEvent(EventType.Board, Player.Black)}
-                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 ${
-                            isLatestEvent(EventType.Board, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Player.Black) ? highlight : ''
                         }`}
                     >
                         Black Side
                     </button>
                 </div>
 
+                {/* Right side */}
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
                         <Button
                             onClick={() => sendEvent(EventType.Throw, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
                             onClick={() => sendEvent(EventType.Racket, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
@@ -828,10 +867,23 @@ export type StateSummary = {
     latestEvent?: Event,
     rallyState: RallyState,
     possession: Player,
+    latestInput?: Input,
+    firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
 }
 
 export type ErrorResponse = {
     error: string,
+}
+
+// Input
+export type Input = {
+    action: InputAction,
+    player: Player,
+}
+
+export enum InputAction {
+    Increase = 'Increase',
+    Decrease = 'Decrease',
 }
