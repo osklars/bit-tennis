@@ -474,18 +474,30 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
 
 === Frontend ===
 
+--- frontend/src/app/setup/page.tsx ---
+
+import SetupForm from "@/app/components/SetupForm";
+
+export default function Setup() {
+    return (
+        <div className="h-screen flex items-center justify-center">
+            <SetupForm />
+        </div>
+    )
+}
 --- frontend/src/app/components/Scoreboard.tsx ---
 
 'use client'
 
 import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
+import Link from "next/link";
 
 const ServeIndicator = ({ active }: { active: boolean }) => (
     <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
 );
 
-const PlayerScore = ({
+function PlayerScore({
                          setScore,
                          gameScore,
                          isServing,
@@ -499,7 +511,7 @@ const PlayerScore = ({
     isSecondServe: boolean
     bgColor: string
     player: Player
-}) => {
+}) {
     const sendInput = async (action: InputAction) => {
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
@@ -512,7 +524,7 @@ const PlayerScore = ({
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
             <div className="text-3xl mb-8">{setScore}</div>
             <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
@@ -534,7 +546,8 @@ const PlayerScore = ({
     );
 };
 
-const Scoreboard = () => {
+
+function Scoreboard() {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
@@ -556,6 +569,14 @@ const Scoreboard = () => {
     
     return (
         <div className="flex w-screen h-screen">
+            <div className="absolute flex w-full justify-center py-16">
+                <Link
+                    href="/setup"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100"
+                >
+                    New Game
+                </Link>
+            </div>
             <PlayerScore
                 setScore={state.setPoints.Red}
                 gameScore={state.gamePoints.Red}
@@ -577,6 +598,85 @@ const Scoreboard = () => {
 };
 
 export default Scoreboard;
+--- frontend/src/app/components/SetupForm.tsx ---
+
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { NewMatch, Player } from '@/lib/types';
+
+export default function SetupForm() {
+    const router = useRouter();
+    const [formData, setFormData] = useState<NewMatch>({
+        playerRed: '',
+        playerBlack: '',
+        bestOf: 3,
+        firstServer: Player.Red
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
+                method: 'POST',
+                body: JSON.stringify(formData)
+            });
+            router.push('/score');
+        } catch (e) {
+            console.error("Setup error:", e);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 w-96">
+            <div>
+                <label className="block">Red Player Name</label>
+                <input
+                    type="text"
+                    value={formData.playerRed}
+                    onChange={e => setFormData({...formData, playerRed: e.target.value})}
+                    className="w-full p-2 border rounded"
+                />
+            </div>
+            <div>
+                <label className="block">Black Player Name</label>
+                <input
+                    type="text"
+                    value={formData.playerBlack}
+                    onChange={e => setFormData({...formData, playerBlack: e.target.value})}
+                    className="w-full p-2 border rounded"
+                />
+            </div>
+            <div>
+                <label className="block">Best of</label>
+                <select
+                    value={formData.bestOf}
+                    onChange={e => setFormData({...formData, bestOf: parseInt(e.target.value)})}
+                    className="w-full p-2 border rounded"
+                >
+                    <option value={1}>1</option>
+                    <option value={3}>3</option>
+                    <option value={5}>5</option>
+                </select>
+            </div>
+            <div>
+                <label className="block">First Server</label>
+                <select
+                    value={formData.firstServer}
+                    onChange={e => setFormData({...formData, firstServer: e.target.value as Player})}
+                    className="w-full p-2 border rounded"
+                >
+                    <option value={Player.Red}>Red</option>
+                    <option value={Player.Black}>Black</option>
+                </select>
+            </div>
+            <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Start Game
+            </button>
+        </form>
+    );
+}
 --- frontend/src/app/components/State.tsx ---
 
 'use client';

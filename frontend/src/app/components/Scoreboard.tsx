@@ -2,12 +2,13 @@
 
 import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
+import Link from "next/link";
 
 const ServeIndicator = ({ active }: { active: boolean }) => (
     <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
 );
 
-const PlayerScore = ({
+function PlayerScore({
                          setScore,
                          gameScore,
                          isServing,
@@ -21,7 +22,7 @@ const PlayerScore = ({
     isSecondServe: boolean
     bgColor: string
     player: Player
-}) => {
+}) {
     const sendInput = async (action: InputAction) => {
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
@@ -34,7 +35,7 @@ const PlayerScore = ({
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
             <div className="text-3xl mb-8">{setScore}</div>
             <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
@@ -56,7 +57,8 @@ const PlayerScore = ({
     );
 };
 
-const Scoreboard = () => {
+
+function Scoreboard() {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
@@ -78,6 +80,14 @@ const Scoreboard = () => {
     
     return (
         <div className="flex w-screen h-screen">
+            <div className="absolute flex w-full justify-center py-16">
+                <Link
+                    href="/setup"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100"
+                >
+                    New Game
+                </Link>
+            </div>
             <PlayerScore
                 setScore={state.setPoints.Red}
                 gameScore={state.gamePoints.Red}
