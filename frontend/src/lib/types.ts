@@ -51,3 +51,14 @@ export type StateSummary = {
 export type ErrorResponse = {
     error: string,
 }
+
+// Input
+export type Input = {
+    action: InputAction,
+    player: Player,
+}
+
+export enum InputAction {
+    Increase = 'Increase',
+    Decrease = 'Decrease',
+}
