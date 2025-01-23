@@ -3,6 +3,7 @@
 import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
+import {Opponent} from "@/lib/utils";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
     <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
@@ -82,6 +83,27 @@ function Scoreboard() {
         (state.gamePoints.Red + state.gamePoints.Black < 20) &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
+    const playerScores = {
+        Red: {
+            name: state.playerRed,
+            setScore: state.setPoints.Red,
+            gameScore: state.gamePoints.Red,
+            isServing: (state.firstServer === Player.Red) === isFirstServer,
+            isSecondServe,
+            bgColor:"bg-red-600",
+            player: Player.Red,
+        },
+        Black: {
+            name: state.playerBlack,
+            setScore: state.setPoints.Black,
+            gameScore: state.gamePoints.Black,
+            isServing: (state.firstServer === Player.Black) === isFirstServer,
+            isSecondServe,
+            bgColor:"bg-black",
+            player: Player.Black,
+        }
+    }
+
     return (
         <div className="flex w-screen h-dvh">
             <div className="absolute flex w-full justify-center py-16">
@@ -93,22 +115,10 @@ function Scoreboard() {
                 </Link>
             </div>
             <PlayerScore
-                name={state.playerRed}
-                setScore={state.setPoints.Red}
-                gameScore={state.gamePoints.Red}
-                isServing={(state.firstServer === Player.Red) === isFirstServer}
-                isSecondServe={isSecondServe}
-                bgColor="bg-red-600"
-                player={Player.Red}
+                {...playerScores[state.firstServer]}
             />
             <PlayerScore
-                name={state.playerBlack}
-                setScore={state.setPoints.Black}
-                gameScore={state.gamePoints.Black}
-                isServing={(state.firstServer === Player.Black) === isFirstServer}
-                isSecondServe={isSecondServe}
-                bgColor="bg-black"
-                player={Player.Black}
+                {...playerScores[Opponent(state.firstServer)]}
             />
         </div>
     );
