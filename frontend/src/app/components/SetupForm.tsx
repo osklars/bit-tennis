@@ -44,7 +44,7 @@ export default function SetupForm() {
                     />
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 flex justify-center py-[25vh] gap-4">
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-[25vh] gap-4">
                     <select
                         name="bestOf"
                         className="p-2 border rounded text-black"

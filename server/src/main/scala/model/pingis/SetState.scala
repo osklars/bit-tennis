@@ -19,7 +19,7 @@ case class SetState
 ):
   def process(event: Event): Option[SetState] = game.process(event).map(handle)
   
-  def process(input: Input): Option[SetState] = game.process(input).map(handle)
+  def process(input: Input): Option[SetState] = game.process(input.action, Player(input.side, points)).map(handle)
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>

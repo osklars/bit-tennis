@@ -134,7 +134,7 @@ function Scoreboard() {
         }
     }
     
-    const leftPlayer = (state.setPoints.Red + state.gamePoints.Black) % 2 == 0 ? Player.Red : Player.Black;
+    const leftPlayer = (state.setPoints.Red + state.setPoints.Black) % 2 == 0 ? Player.Red : Player.Black;
 
     return (
         <div className="flex w-screen h-dvh overflow-hidden">
