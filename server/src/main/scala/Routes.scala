@@ -1,6 +1,6 @@
 import cats.effect.IO
-import model.InvalidEvent
-import model.api.in.{Event, NewMatch}
+import model.api.in.{Event, Input, NewMatch}
+import model.api.out.InvalidEvent
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.`Content-Type`
 import org.http4s.server.middleware.{CORS, ErrorHandling}
@@ -24,6 +24,21 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
     case req@POST -> Root / "event" =>
       for
         event <- req.as[Event]
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
+          }
+        resp <- result match
+          case Left(value) => Accepted(value)
+          case Right(value) => Ok(value)
+      yield resp
+
+    case req@POST -> Root / "input" =>
+      for
+        event <- req.as[Input]
         result <- service.process(event)
           .map(Right.apply)
           .recover {

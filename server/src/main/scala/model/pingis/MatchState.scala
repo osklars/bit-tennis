@@ -1,20 +1,24 @@
 package model.pingis
 
-import model.api.in.{Event, NewMatch}
+import model.api.in.{Event, Input, NewMatch}
 import model.types.Player
 import upickle.default.*
 
 object MatchState:
   def apply(input: NewMatch): MatchState =
-    MatchState(input.playerA, input.playerB, input.bestOf, SetState(input.firstServer))
+    MatchState(input.playerRed, input.playerBlack, input.bestOf, SetState(input.firstServer))
 
 case class MatchState
 (
-  playerA: String = "Player A",
-  playerB: String = "Player B",
+  playerRed: String = "Player Red",
+  playerBlack: String = "Player Black",
   bestOf: Int = 3,
-  set: SetState = SetState(Player.A),
+  set: SetState = SetState(Player.Red),
 ):
-  def process(event: Event): Option[MatchState] = 
+  def process(event: Event): Option[MatchState] =
     set.process(event)
+      .map(newSet => copy(set = newSet))
+  
+  def process(input: Input): Option[MatchState] =
+    set.process(input)
       .map(newSet => copy(set = newSet))

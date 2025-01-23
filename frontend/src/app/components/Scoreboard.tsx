@@ -1,7 +1,7 @@
 'use client'
 
 import React, {useEffect, useState} from 'react';
-import { StateSummary, Player } from '@/lib/types';
+import { StateSummary } from '@/lib/types';
 
 const ServeIndicator = ({ active }: { active: boolean }) => (
     <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />

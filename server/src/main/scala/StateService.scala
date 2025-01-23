@@ -2,9 +2,8 @@ import cats.effect.{IO, Ref}
 import cats.syntax.all.*
 import fs2.Stream
 import fs2.concurrent.Topic
-import model.InvalidEvent
-import model.api.in.{Event, NewMatch}
-import model.api.out.StateSummary
+import model.api.in.{Event, Input, NewMatch}
+import model.api.out.{InvalidEvent, InvalidInput, StateSummary}
 import model.pingis.MatchState
 
 class StateService
@@ -29,6 +28,18 @@ class StateService
       _ <- IO.println("got new state", newState)
       _ <- state.set(newState)
       summary = StateSummary(event, newState)
+      _ <- updates.publish1(summary)
+    yield summary
+
+  def process(input: Input): IO[StateSummary] =
+    for
+      current <- state.get
+      _ <- IO.println("handling event", current, input)
+      newState <- current.process(input)
+        .liftTo[IO](InvalidInput(input, StateSummary(current)))
+      _ <- IO.println("got new state", newState)
+      _ <- state.set(newState)
+      summary = StateSummary(input, newState)
       _ <- updates.publish1(summary)
     yield summary
 

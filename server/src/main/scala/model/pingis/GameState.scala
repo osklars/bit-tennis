@@ -1,7 +1,8 @@
 package model.pingis
 
-import model.api.in.Event
+import model.api.in.{Event, Input}
 import model.types.EventType.*
+import model.types.InputAction.{Decrease, Increase}
 import model.types.RallyState.*
 import model.types.{EventType, Player, Points, RallyState}
 
@@ -15,9 +16,9 @@ case object GameState:
 case class GameState
 (
   rallyState: RallyState = Idle,
-  possession: Player = Player.A, // a player has possession of the ball until it's the other players turn to hit it
+  possession: Player = Player.Red, // a player has possession of the ball until it's the other players turn to hit it
   points: Points = Points(0, 0),
-  firstServer: Player = Player.A,
+  firstServer: Player = Player.Red,
 ):
   def process(event: Event): Option[GameState] =
     Option(rallyState, event).collect {
@@ -28,36 +29,39 @@ case class GameState
       case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
 
       case (ToBounce1, Event(Board, Some(this.possession))) => copy(ToBounce2)
-      case (ToBounce1, _) => awardPoint(possession.opponent)
+      case (ToBounce1, _) => handle(points.inc(possession.opponent))
 
       case (ToBounce2, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce2, Event(Racket, Some(possession.opponent))) => awardPoint(possession)
+      case (ToBounce2, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
       case (ToBounce2, Event(Net, _)) => copy(NetServe)
-      case (ToBounce2, _) => awardPoint(possession.opponent)
+      case (ToBounce2, _) => handle(points.inc(possession.opponent))
 
       case (NetServe, Event(Board, Some(possession.opponent))) => copy(Idle)
       case (NetServe, Event(Net, _)) => this
-      case (NetServe, _) => awardPoint(possession.opponent)
+      case (NetServe, _) => handle(points.inc(possession.opponent))
 
       // returning
       case (ToStrike, Event(Racket, Some(this.possession))) => copy(ToBounce, possession)
-      case (ToStrike, _) => awardPoint(possession.opponent)
+      case (ToStrike, _) => handle(points.inc(possession.opponent))
 
       case (ToBounce, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce, Event(Racket, Some(possession.opponent))) => awardPoint(possession)
+      case (ToBounce, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
       case (ToBounce, Event(Net, _)) => this
-      case (ToBounce, _) => awardPoint(possession.opponent)
+      case (ToBounce, _) => handle(points.inc(possession.opponent))
     }
-
-  private def awardPoint(player: Player): GameState = {
-    val newPoints = points.inc(player)
+  
+  private def handle(points: Points): GameState =
     copy(
       rallyState = Idle,
       possession =
-        if (newPoints.A + newPoints.B < 20)
-          if ((newPoints.A + newPoints.B) % 4 < 2) firstServer else firstServer.opponent
+        if (points.Red + points.Black < 20)
+          if ((points.Red + points.Black) % 4 < 2) firstServer else firstServer.opponent
         else
-          if ((newPoints.A + newPoints.B) % 2 == 0) firstServer else firstServer.opponent,
-      points = newPoints,
+          if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent,
+      points = points,
     )
+  
+  def process(input: Input): Option[GameState] = Option(input.action).collect {
+    case Increase => handle(points.inc(input.player))
+    case Decrease => handle(points.dec(input.player))
   }

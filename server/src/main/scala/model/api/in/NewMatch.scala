@@ -5,8 +5,8 @@ import upickle.default.*
 
 case class NewMatch
 (
-  playerA: String,
-  playerB: String,
+  playerRed: String,
+  playerBlack: String,
   bestOf: Int,
   firstServer: Player,
 ) derives ReadWriter
