@@ -17,6 +17,7 @@ function PlayerScore
      isServing,
      isSecondServe,
      isTwoServesEach,
+     isRightSide,
      bgColor,
      player
  }: {
@@ -26,6 +27,7 @@ function PlayerScore
     isServing: boolean
     isSecondServe: boolean
     isTwoServesEach: boolean
+    isRightSide?: boolean
     bgColor: string
     player: Player
 }) {
@@ -41,11 +43,13 @@ function PlayerScore
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col p-8 items-center justify-between text-white relative`}>
             {/* Original content stays the same */}
             <div className="text-[5vh]">{name}</div>
-            <div className="text-[5vh]">{setScore}</div>
-            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
+            <div className={`w-full flex items-center ${isRightSide ? 'flex-row-reverse' : ''}`}>
+                <div className="text-[5vh]">{setScore}</div>
+                <div style={{fontSize: '40vh', lineHeight: '40vh'}} className=" flex-grow text-center font-bold mb-0">{gameScore}</div>
+            </div>
             <div className="flex gap-4">
                 <ServeIndicator active={isServing && !isSecondServe}/>
                 {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
@@ -124,6 +128,7 @@ function Scoreboard() {
             />
             <PlayerScore
                 {...playerScores[Opponent(state.firstServer)]}
+                isRightSide
             />
         </div>
     );
