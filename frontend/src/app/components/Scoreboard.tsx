@@ -45,12 +45,13 @@ function PlayerScore
     return (
         <div className={`${bgColor} w-1/2 h-full flex flex-col p-8 items-center justify-between text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-[5vh]">{name}</div>
-            <div className={`w-full flex items-center ${isRightSide ? 'flex-row-reverse' : ''}`}>
-                <div className="text-[10vh]">{setScore}</div>
-                <div style={{fontSize: '40vh', lineHeight: '40vh'}} className=" flex-grow text-center font-bold mb-0">{gameScore}</div>
+            <div className="text-[5vh] flex-1">{name}</div>
+            <div className={`w-full flex flex-2 items-center ${isRightSide ? 'flex-row-reverse text-end' : ''}`}>
+                <div className="text-[10vh] flex-1">{setScore}</div>
+                <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="flex-2 text-center font-bold mb-0">{gameScore}</div>
+                <div className="flex-1"/>
             </div>
-            <div className="flex gap-4">
+            <div className="flex-1 flex gap-4">
                 <ServeIndicator active={isServing && !isSecondServe}/>
                 {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
             </div>
@@ -115,10 +116,10 @@ function Scoreboard() {
 
     return (
         <div className="flex w-screen h-dvh">
-            <div className="absolute flex w-full justify-center py-16">
+            <div className="absolute flex w-full justify-center bottom-0 pb-16">
                 <Link
                     href="/setup"
-                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
+                    className="z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
                 >
                     New Game
                 </Link>
