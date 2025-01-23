@@ -512,6 +512,7 @@ function PlayerScore
      isServing,
      isSecondServe,
      isTwoServesEach,
+     isRightSide,
      bgColor,
      player
  }: {
@@ -521,6 +522,7 @@ function PlayerScore
     isServing: boolean
     isSecondServe: boolean
     isTwoServesEach: boolean
+    isRightSide?: boolean
     bgColor: string
     player: Player
 }) {
@@ -536,12 +538,15 @@ function PlayerScore
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col p-8 items-center justify-between text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-[5vh]">{name}</div>
-            <div className="text-[5vh]">{setScore}</div>
-            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
-            <div className="flex gap-4">
+            <div className="text-[5vh] flex-1">{name}</div>
+            <div className={`w-full flex flex-2 items-center ${isRightSide ? 'flex-row-reverse text-end' : ''}`}>
+                <div className="text-[10vh] flex-1">{setScore}</div>
+                <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="flex-2 text-center font-bold mb-0">{gameScore}</div>
+                <div className="flex-1"/>
+            </div>
+            <div className="flex-1 flex gap-4">
                 <ServeIndicator active={isServing && !isSecondServe}/>
                 {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
             </div>
@@ -606,10 +611,10 @@ function Scoreboard() {
 
     return (
         <div className="flex w-screen h-dvh">
-            <div className="absolute flex w-full justify-center py-16">
+            <div className="absolute flex w-full justify-center bottom-0 pb-16">
                 <Link
                     href="/setup"
-                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
+                    className="z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
                 >
                     New Game
                 </Link>
@@ -619,6 +624,7 @@ function Scoreboard() {
             />
             <PlayerScore
                 {...playerScores[Opponent(state.firstServer)]}
+                isRightSide
             />
         </div>
     );

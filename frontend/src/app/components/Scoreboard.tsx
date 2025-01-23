@@ -4,6 +4,7 @@ import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
 import {Opponent} from "@/lib/utils";
+import {ChevronDown, ChevronUp} from "lucide-react";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
     <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
@@ -69,6 +70,25 @@ function PlayerScore
     );
 };
 
+function HiddenButtons() {
+    const [hidden, setHidden] = useState(true);
+    
+    return (
+        <div className="absolute z-10 flex flex-col w-full items-center justify-center bottom-0 bg-gradient-to-t from-transparent to-white/20">
+            <button onClick={() => setHidden(!hidden)}>
+                {hidden ? <ChevronUp color={"white"} height={64} width={128}/> : <ChevronDown color={"white"} height={64} width={128}/>}
+            </button>
+            {!hidden &&
+                <Link
+                    href="/setup"
+                    className="m-8 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
+                >
+                    New Game
+                </Link>}
+        </div>
+    );
+}
+
 
 function Scoreboard() {
     const [state, setState] = useState<StateSummary>();
@@ -115,15 +135,8 @@ function Scoreboard() {
     }
 
     return (
-        <div className="flex w-screen h-dvh">
-            <div className="absolute flex w-full justify-center bottom-0 pb-16">
-                <Link
-                    href="/setup"
-                    className="z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
-                >
-                    New Game
-                </Link>
-            </div>
+        <div className="flex w-screen h-dvh overflow-hidden">
+            <HiddenButtons />
             <PlayerScore
                 {...playerScores[state.firstServer]}
             />
