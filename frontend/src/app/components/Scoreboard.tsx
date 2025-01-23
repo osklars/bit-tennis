@@ -5,7 +5,7 @@ import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
+    <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
 function PlayerScore
@@ -40,9 +40,9 @@ function PlayerScore
     return (
         <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-5xl mb-8">{name}</div>
-            <div className="text-3xl mb-8">{setScore}</div>
-            <div style={{fontSize: '45vh', lineHeight: '45vh'}} className="font-bold mb-8">{gameScore}</div>
+            <div className="text-[5vh]">{name}</div>
+            <div className="text-[5vh]">{setScore}</div>
+            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
             <div className="flex gap-4">
                 <ServeIndicator active={isServing}/>
                 <ServeIndicator active={isServing && isSecondServe}/>
@@ -83,11 +83,11 @@ function Scoreboard() {
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
     return (
-        <div className="flex w-screen h-screen">
+        <div className="flex w-screen h-dvh">
             <div className="absolute flex w-full justify-center py-16">
                 <Link
                     href="/setup"
-                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
                 >
                     New Game
                 </Link>

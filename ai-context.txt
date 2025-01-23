@@ -278,7 +278,7 @@ case class InvalidEvent(event: Event, state: StateSummary)
 
 package model.api.out
 
-import model.api.in.{Event, Input, NewMatch}
+import model.api.in.{Event, Input}
 import model.pingis.MatchState
 import model.types.{Player, Points, RallyState}
 import upickle.default.*
@@ -294,6 +294,9 @@ case class StateSummary
   firstServer: Player,
   gamePoints: Points,
   setPoints: Points,
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
 ) derives ReadWriter
 
 object StateSummary:
@@ -305,6 +308,9 @@ object StateSummary:
       firstServer = matchState.set.game.firstServer,
       gamePoints = matchState.set.game.points,
       setPoints = matchState.set.points,
+      playerRed = matchState.playerRed,
+      playerBlack = matchState.playerBlack,
+      bestOf = matchState.bestOf,
     )
 
   def apply(event: Event, matchState: MatchState): StateSummary =
@@ -493,18 +499,21 @@ import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
 
-const ServeIndicator = ({ active }: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
+const ServeIndicator = ({active}: { active: boolean }) => (
+    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
-function PlayerScore({
-                         setScore,
-                         gameScore,
-                         isServing,
-                         isSecondServe,
-                         bgColor,
-                         player
-                     }: {
+function PlayerScore
+({
+     name,
+     setScore,
+     gameScore,
+     isServing,
+     isSecondServe,
+     bgColor,
+     player
+ }: {
+    name: string
     setScore: number
     gameScore: number
     isServing: boolean
@@ -516,7 +525,7 @@ function PlayerScore({
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
                 method: 'POST',
-                body: JSON.stringify({ action, player })
+                body: JSON.stringify({action, player})
             });
         } catch (e) {
             console.error("Input error:", e);
@@ -526,11 +535,12 @@ function PlayerScore({
     return (
         <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-3xl mb-8">{setScore}</div>
-            <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
+            <div className="text-5xl">{name}</div>
+            <div className="text-3xl">{setScore}</div>
+            <div style={{fontSize: '45vh', lineHeight: '45vh'}} className="font-bold mb-8">{gameScore}</div>
             <div className="flex gap-4">
-                <ServeIndicator active={isServing} />
-                <ServeIndicator active={isServing && isSecondServe} />
+                <ServeIndicator active={isServing}/>
+                <ServeIndicator active={isServing && isSecondServe}/>
             </div>
 
             {/* Clickable overlays */}
@@ -566,7 +576,7 @@ function Scoreboard() {
     const isSecondServe =
         (state.gamePoints.Red + state.gamePoints.Black < 20) &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
-    
+
     return (
         <div className="flex w-screen h-screen">
             <div className="absolute flex w-full justify-center py-16">
@@ -578,6 +588,7 @@ function Scoreboard() {
                 </Link>
             </div>
             <PlayerScore
+                name={state.playerRed}
                 setScore={state.setPoints.Red}
                 gameScore={state.gamePoints.Red}
                 isServing={(state.firstServer === Player.Red) === isFirstServer}
@@ -586,6 +597,7 @@ function Scoreboard() {
                 player={Player.Red}
             />
             <PlayerScore
+                name={state.playerBlack}
                 setScore={state.setPoints.Black}
                 gameScore={state.gamePoints.Black}
                 isServing={(state.firstServer === Player.Black) === isFirstServer}
@@ -602,78 +614,71 @@ export default Scoreboard;
 
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { NewMatch, Player } from '@/lib/types';
+import {useState} from 'react';
+import {redirect, useRouter} from 'next/navigation';
+import {NewMatch, Player} from '@/lib/types';
+
+async function submitForm(formData: FormData) {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
+        method: 'POST',
+        body: JSON.stringify({
+            playerRed: formData.get('playerRed'),
+            playerBlack: formData.get('playerBlack'),
+            bestOf: Number(formData.get('bestOf')),
+            firstServer: formData.get('firstServer')
+        })
+    });
+    redirect('/score');
+}
 
 export default function SetupForm() {
-    const router = useRouter();
-    const [formData, setFormData] = useState<NewMatch>({
-        playerRed: '',
-        playerBlack: '',
-        bestOf: 3,
-        firstServer: Player.Red
-    });
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
-                method: 'POST',
-                body: JSON.stringify(formData)
-            });
-            router.push('/score');
-        } catch (e) {
-            console.error("Setup error:", e);
-        }
-    };
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 w-96">
-            <div>
-                <label className="block">Red Player Name</label>
-                <input
-                    type="text"
-                    value={formData.playerRed}
-                    onChange={e => setFormData({...formData, playerRed: e.target.value})}
-                    className="w-full p-2 border rounded"
-                />
+        <form action={submitForm}>
+            <div className="flex w-screen h-screen">
+                <div className="bg-red-600 w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerRed"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Red"
+                    />
+                </div>
+
+                <div
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-white">
+                    VS
+                </div>
+
+                <div className="bg-black w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerBlack"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Black"
+                    />
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center p-8 gap-4">
+                    <select
+                        name="bestOf"
+                        className="p-2 border rounded"
+                    >
+                        <option value={1}>Best of 1</option>
+                        <option value={3}>Best of 3</option>
+                        <option value={5}>Best of 5</option>
+                    </select>
+                    <select
+                        name="firstServer"
+                        className="p-2 border rounded"
+                    >
+                        <option value={Player.Red}>Red serves first</option>
+                        <option value={Player.Black}>Black serves first</option>
+                    </select>
+                    <button type="submit" className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Start Game
+                    </button>
+                </div>
             </div>
-            <div>
-                <label className="block">Black Player Name</label>
-                <input
-                    type="text"
-                    value={formData.playerBlack}
-                    onChange={e => setFormData({...formData, playerBlack: e.target.value})}
-                    className="w-full p-2 border rounded"
-                />
-            </div>
-            <div>
-                <label className="block">Best of</label>
-                <select
-                    value={formData.bestOf}
-                    onChange={e => setFormData({...formData, bestOf: parseInt(e.target.value)})}
-                    className="w-full p-2 border rounded"
-                >
-                    <option value={1}>1</option>
-                    <option value={3}>3</option>
-                    <option value={5}>5</option>
-                </select>
-            </div>
-            <div>
-                <label className="block">First Server</label>
-                <select
-                    value={formData.firstServer}
-                    onChange={e => setFormData({...formData, firstServer: e.target.value as Player})}
-                    className="w-full p-2 border rounded"
-                >
-                    <option value={Player.Red}>Red</option>
-                    <option value={Player.Black}>Black</option>
-                </select>
-            </div>
-            <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                Start Game
-            </button>
         </form>
     );
 }
@@ -971,6 +976,9 @@ export type StateSummary = {
     firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
+    playerRed: string,
+    playerBlack: string,
+    bestOf: number,
 }
 
 export type ErrorResponse = {
