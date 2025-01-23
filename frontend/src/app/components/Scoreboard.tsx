@@ -133,15 +133,17 @@ function Scoreboard() {
             player: Player.Black,
         }
     }
+    
+    const leftPlayer = (state.setPoints.Red + state.gamePoints.Black) % 2 == 0 ? Player.Red : Player.Black;
 
     return (
         <div className="flex w-screen h-dvh overflow-hidden">
             <HiddenButtons />
             <PlayerScore
-                {...playerScores[state.firstServer]}
+                {...playerScores[leftPlayer]}
             />
             <PlayerScore
-                {...playerScores[Opponent(state.firstServer)]}
+                {...playerScores[Opponent(leftPlayer)]}
                 isRightSide
             />
         </div>
