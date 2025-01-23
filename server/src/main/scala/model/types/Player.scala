@@ -3,8 +3,8 @@ package model.types
 import upickle.default.*
 
 enum Player derives ReadWriter:
-  case A, B
+  case Red, Black
 
   lazy val opponent: Player = this match
-    case Player.A => Player.B
-    case Player.B => Player.A
+    case Player.Red => Player.Black
+    case Player.Black => Player.Red

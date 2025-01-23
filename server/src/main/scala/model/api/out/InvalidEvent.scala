@@ -1,4 +1,4 @@
-package model
+package model.api.out
 
 import model.api.in.Event
 import model.api.out.StateSummary

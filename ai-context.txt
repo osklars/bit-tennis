@@ -1,0 +1,837 @@
+=== Scala ===
+
+--- server/src/main/scala/StateService.scala ---
+
+import cats.effect.{IO, Ref}
+import cats.syntax.all.*
+import fs2.Stream
+import fs2.concurrent.Topic
+import model.api.in.{Event, Input, NewMatch}
+import model.api.out.{InvalidEvent, InvalidInput, StateSummary}
+import model.pingis.MatchState
+
+class StateService
+(
+  state: Ref[IO, MatchState],
+  updates: Topic[IO, StateSummary]
+):
+  def newMatch(input: NewMatch): IO[StateSummary] =
+    val newState = MatchState(input)
+    for
+      _ <- state.set(newState)
+      summary = StateSummary(newState)
+      _ <- updates.publish1(summary)
+    yield summary
+
+  def process(event: Event): IO[StateSummary] =
+    for
+      current <- state.get
+      _ <- IO.println("handling event", current, event)
+      newState <- current.process(event)
+        .liftTo[IO](InvalidEvent(event, StateSummary(current)))
+      _ <- IO.println("got new state", newState)
+      _ <- state.set(newState)
+      summary = StateSummary(event, newState)
+      _ <- updates.publish1(summary)
+    yield summary
+
+  def process(input: Input): IO[StateSummary] =
+    for
+      current <- state.get
+      _ <- IO.println("handling event", current, input)
+      newState <- current.process(input)
+        .liftTo[IO](InvalidInput(input, StateSummary(current)))
+      _ <- IO.println("got new state", newState)
+      _ <- state.set(newState)
+      summary = StateSummary(input, newState)
+      _ <- updates.publish1(summary)
+    yield summary
+
+  def getState: IO[StateSummary] = state.get.map(StateSummary.apply)
+
+  def subscribe: Stream[IO, StateSummary] =
+    updates
+      .subscribeUnbounded
+--- server/src/main/scala/model/types/InputAction.scala ---
+
+package model.types
+
+import upickle.default.*
+
+enum InputAction derives ReadWriter:
+  case Increase, Decrease
+
+--- server/src/main/scala/model/types/EventType.scala ---
+
+package model.types
+
+import upickle.default.*
+
+enum EventType derives ReadWriter:
+  case Throw, ExitTable, Net // only relevant for serves
+  case Racket, Board, Out
+
+--- server/src/main/scala/model/types/RallyState.scala ---
+
+package model.types
+
+import upickle.default.*
+
+enum RallyState derives ReadWriter:
+  case Idle, ToServe, ToBounce1, ToBounce2, NetServe // Serve states
+  case ToStrike, ToBounce // Return states
+
+--- server/src/main/scala/model/types/Points.scala ---
+
+package model.types
+
+import upickle.default.*
+
+case class Points(Red: Int, Black: Int) derives ReadWriter:
+  def inc(player: Player): Points = player match {
+    case Player.Red => copy(Red = Red + 1)
+    case Player.Black => copy(Black = Black + 1)
+  }
+  
+  def dec(player: Player): Points = player match {
+    case Player.Red => copy(Red = Math.max(Red - 1, 0))
+    case Player.Black => copy(Black = Math.max(Black - 1, 0))
+  }
+
+--- server/src/main/scala/model/types/Player.scala ---
+
+package model.types
+
+import upickle.default.*
+
+enum Player derives ReadWriter:
+  case Red, Black
+
+  lazy val opponent: Player = this match
+    case Player.Red => Player.Black
+    case Player.Black => Player.Red
+--- server/src/main/scala/model/pingis/SetState.scala ---
+
+package model.pingis
+
+import model.api.in.{Event, Input}
+import model.types.{Player, Points, RallyState}
+import upickle.default.*
+
+case object SetState:
+  def apply(firstServer: Player): SetState =
+    SetState(
+      GameState(firstServer),
+      firstServer = firstServer,
+    )
+
+case class SetState
+(
+  game: GameState,
+  points: Points = Points(0, 0),
+  firstServer: Player,
+):
+  def process(event: Event): Option[SetState] = game.process(event).map(handle)
+  
+  def process(input: Input): Option[SetState] = game.process(input).map(handle)
+  
+  private def handle(gameState: GameState): SetState = gameState match {
+    case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
+      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Red))
+    case GameState(_, _, p, _) if p.Black >= 11 && p.Black >= p.Red + 2 =>
+      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Black))
+    case g => copy(game = g)
+  }
+  
+
+--- server/src/main/scala/model/pingis/GameState.scala ---
+
+package model.pingis
+
+import model.api.in.{Event, Input}
+import model.types.EventType.*
+import model.types.InputAction.{Decrease, Increase}
+import model.types.RallyState.*
+import model.types.{EventType, Player, Points, RallyState}
+
+case object GameState:
+  def apply(firstServer: Player): GameState =
+    GameState(
+      possession = firstServer,
+      firstServer = firstServer,
+    )
+
+case class GameState
+(
+  rallyState: RallyState = Idle,
+  possession: Player = Player.Red, // a player has possession of the ball until it's the other players turn to hit it
+  points: Points = Points(0, 0),
+  firstServer: Player = Player.Red,
+):
+  def process(event: Event): Option[GameState] =
+    Option(rallyState, event).collect {
+      // serving
+      case (Idle, Event(Throw, Some(this.possession))) => copy(ToServe)
+
+      case (ToServe, Event(Racket, Some(this.possession))) => copy(ToBounce1)
+      case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
+
+      case (ToBounce1, Event(Board, Some(this.possession))) => copy(ToBounce2)
+      case (ToBounce1, _) => handle(points.inc(possession.opponent))
+
+      case (ToBounce2, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
+      case (ToBounce2, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
+      case (ToBounce2, Event(Net, _)) => copy(NetServe)
+      case (ToBounce2, _) => handle(points.inc(possession.opponent))
+
+      case (NetServe, Event(Board, Some(possession.opponent))) => copy(Idle)
+      case (NetServe, Event(Net, _)) => this
+      case (NetServe, _) => handle(points.inc(possession.opponent))
+
+      // returning
+      case (ToStrike, Event(Racket, Some(this.possession))) => copy(ToBounce, possession)
+      case (ToStrike, _) => handle(points.inc(possession.opponent))
+
+      case (ToBounce, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
+      case (ToBounce, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
+      case (ToBounce, Event(Net, _)) => this
+      case (ToBounce, _) => handle(points.inc(possession.opponent))
+    }
+  
+  private def handle(points: Points): GameState =
+    copy(
+      rallyState = Idle,
+      possession =
+        if (points.Red + points.Black < 20)
+          if ((points.Red + points.Black) % 4 < 2) firstServer else firstServer.opponent
+        else
+          if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent,
+      points = points,
+    )
+  
+  def process(input: Input): Option[GameState] = Option(input.action).collect {
+    case Increase => handle(points.inc(input.player))
+    case Decrease => handle(points.dec(input.player))
+  }
+--- server/src/main/scala/model/pingis/MatchState.scala ---
+
+package model.pingis
+
+import model.api.in.{Event, Input, NewMatch}
+import model.types.Player
+import upickle.default.*
+
+object MatchState:
+  def apply(input: NewMatch): MatchState =
+    MatchState(input.playerRed, input.playerBlack, input.bestOf, SetState(input.firstServer))
+
+case class MatchState
+(
+  playerRed: String = "Player Red",
+  playerBlack: String = "Player Black",
+  bestOf: Int = 3,
+  set: SetState = SetState(Player.Red),
+):
+  def process(event: Event): Option[MatchState] =
+    set.process(event)
+      .map(newSet => copy(set = newSet))
+  
+  def process(input: Input): Option[MatchState] =
+    set.process(input)
+      .map(newSet => copy(set = newSet))
+
+--- server/src/main/scala/model/api/out/InvalidInput.scala ---
+
+package model.api.out
+
+import model.api.in.Input
+import model.api.out.StateSummary
+import upickle.default.*
+
+case class InvalidInput(input: Input, state: StateSummary)
+  extends Exception(s"Unhandled input: ${write(input)} with state ${write(state)}") 
+    derives ReadWriter
+--- server/src/main/scala/model/api/out/ErrorResponse.scala ---
+
+package model.api.out
+
+import upickle.default.*
+
+case class ErrorResponse(error: String) derives ReadWriter
+
+--- server/src/main/scala/model/api/out/InvalidEvent.scala ---
+
+package model.api.out
+
+import model.api.in.Event
+import model.api.out.StateSummary
+import upickle.default.*
+
+case class InvalidEvent(event: Event, state: StateSummary) 
+  extends Exception(s"Unhandled event: ${write(event)} with state ${write(state)}") 
+    derives ReadWriter
+--- server/src/main/scala/model/api/out/StateSummary.scala ---
+
+package model.api.out
+
+import model.api.in.{Event, Input, NewMatch}
+import model.pingis.MatchState
+import model.types.{Player, Points, RallyState}
+import upickle.default.*
+
+case class StateSummary
+(
+  latestEvent: Option[Event] = None,
+  latestInput: Option[Input] = None,
+  rallyState: RallyState,
+  possession: Player,
+  gamePoints: Points,
+  setPoints: Points
+) derives ReadWriter
+
+object StateSummary:
+
+  def apply(matchState: MatchState): StateSummary =
+    StateSummary(
+      rallyState = matchState.set.game.rallyState,
+      possession = matchState.set.game.possession,
+      gamePoints = matchState.set.game.points,
+      setPoints = matchState.set.points,
+    )
+
+  def apply(event: Event, matchState: MatchState): StateSummary =
+    StateSummary(matchState).copy(latestEvent = Some(event))
+
+  def apply(input: Input, matchState: MatchState): StateSummary =
+    StateSummary(matchState).copy(latestInput = Some(input))
+
+--- server/src/main/scala/model/api/in/Event.scala ---
+
+package model.api.in
+
+import model.types.{EventType, Player}
+import upickle.default.*
+
+case class Event
+(
+  event: EventType,
+  player: Option[Player],
+) derives ReadWriter
+
+--- server/src/main/scala/model/api/in/NewMatch.scala ---
+
+package model.api.in
+
+import model.types.Player
+import upickle.default.*
+
+case class NewMatch
+(
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
+  firstServer: Player,
+) derives ReadWriter
+
+--- server/src/main/scala/model/api/in/Input.scala ---
+
+package model.api.in
+
+import model.types.{InputAction, Player}
+import upickle.default.*
+  
+case class Input
+(
+  action: InputAction,
+  player: Player,
+) derives ReadWriter
+
+--- server/src/main/scala/Codecs.scala ---
+
+import cats.effect.Concurrent
+import upickle.default.*
+
+object Codecs:
+
+  import org.http4s.*
+
+  implicit def upickleEncoder[F[_], A: Writer]: EntityEncoder[F, A] =
+    EntityEncoder.stringEncoder[F].contramap[A](write[A](_))
+
+  implicit def upickleDecoder[F[_] : Concurrent, A: Reader]: EntityDecoder[F, A] =
+    EntityDecoder.text[F].map(read[A](_))
+--- server/src/main/scala/Main.scala ---
+
+import cats.effect.{ExitCode, IO, IOApp, Ref}
+import com.comcast.ip4s.*
+import fs2.concurrent.Topic
+import model.api.out.StateSummary
+import model.pingis.MatchState
+import org.http4s.*
+import org.http4s.ember.server.EmberServerBuilder
+
+import scala.concurrent.duration.DurationInt
+
+object Main extends IOApp:
+  def server: IO[ExitCode] =
+    for
+      state <- Ref.of[IO, MatchState](MatchState())
+      updates <- Topic[IO, StateSummary]
+      _ <- EmberServerBuilder
+        .default[IO]
+        .withPort(port"8080")
+        .withHost(host"0.0.0.0")
+        .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
+        .build
+        .use(_ => IO.never)
+        .handleErrorWith { error =>
+          IO.println(s"Server crashed with error: ${error.getMessage}") *>
+            IO.sleep(5.seconds) *>
+            server // Recursive call to restart
+        }
+    yield ExitCode.Success
+
+  def run(args: List[String]): IO[ExitCode] = server
+--- server/src/main/scala/Routes.scala ---
+
+import cats.effect.IO
+import model.api.in.{Event, Input, NewMatch}
+import model.api.out.InvalidEvent
+import org.http4s.dsl.Http4sDsl
+import org.http4s.headers.`Content-Type`
+import org.http4s.server.middleware.{CORS, ErrorHandling}
+import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
+import org.typelevel.ci.CIStringSyntax
+import upickle.default.*
+
+class Routes(service: StateService) extends Http4sDsl[IO]:
+
+  import Codecs.*
+
+  private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+    case req@POST -> Root / "new" =>
+      for
+        input <- req.as[NewMatch]
+        _ <- IO.println(s"Starting new match: $input")
+        state <- service.newMatch(input)
+        resp <- Ok(state)
+      yield resp
+
+    case req@POST -> Root / "event" =>
+      for
+        event <- req.as[Event]
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
+          }
+        resp <- result match
+          case Left(value) => Accepted(value)
+          case Right(value) => Ok(value)
+      yield resp
+
+    case req@POST -> Root / "input" =>
+      for
+        event <- req.as[Input]
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
+          }
+        resp <- result match
+          case Left(value) => Accepted(value)
+          case Right(value) => Ok(value)
+      yield resp
+
+    case GET -> Root / "state" =>
+      val stream =
+        (fs2.Stream.eval(service.getState) ++ service.subscribe)
+          .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
+          .map(history => s"data: ${write(history)}\n\n")
+          .through(fs2.text.utf8.encode)
+
+      Ok(stream).map(_.withHeaders(
+        `Content-Type`(MediaType.`text/event-stream`),
+        Header.Raw(ci"Cache-Control", "no-cache"),
+        Header.Raw(ci"Connection", "keep-alive")
+      ))
+  }
+
+  val corsRoutes: HttpRoutes[IO] = CORS.policy
+    .withAllowOriginAll(ErrorHandling.httpRoutes(routes))
+
+=== Frontend ===
+
+--- frontend/src/app/components/Scoreboard.tsx ---
+
+'use client'
+
+import React, {useEffect, useState} from 'react';
+import { StateSummary } from '@/lib/types';
+
+const ServeIndicator = ({ active }: { active: boolean }) => (
+    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
+);
+
+const PlayerScore = ({
+                         setScore,
+                         gameScore,
+                         isServing,
+                         isSecondServe,
+                         bgColor
+                     }: {
+    setScore: number
+    gameScore: number
+    isServing: boolean
+    isSecondServe: boolean
+    bgColor: string
+}) => (
+    <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white`}>
+        <div className="text-3xl mb-8">{setScore}</div>
+        <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
+        <div className="flex gap-4">
+            <ServeIndicator active={isServing} />
+            <ServeIndicator active={isServing && isSecondServe} />
+        </div>
+    </div>
+);
+
+const Scoreboard = () => {
+    const [state, setState] = useState<StateSummary>();
+
+    useEffect(() => {
+        const eventSource = new EventSource('http://localhost:8080/state');
+        eventSource.onmessage = (event) => {
+            setState(JSON.parse(event.data));
+        };
+        return () => eventSource.close();
+    }, []);
+
+    if (!state) return null;
+
+    const isPlayerAServing = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+        ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
+        (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
+    const isSecondServe =
+        (state.gamePoints.Red + state.gamePoints.Black < 20) &&
+        ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
+
+    return (
+        <div className="flex w-screen h-screen">
+            <PlayerScore
+                setScore={state.setPoints.Red}
+                gameScore={state.gamePoints.Red}
+                isServing={isPlayerAServing}
+                isSecondServe={isSecondServe}
+                bgColor="bg-red-600"
+            />
+            <PlayerScore
+                setScore={state.setPoints.Black}
+                gameScore={state.gamePoints.Black}
+                isServing={!isPlayerAServing}
+                isSecondServe={isSecondServe}
+                bgColor="bg-black"
+            />
+        </div>
+    );
+};
+
+export default Scoreboard;
+--- frontend/src/app/components/State.tsx ---
+
+'use client';
+
+import {useEffect, useState} from 'react';
+import {Player, StateSummary} from '@/lib/types';
+
+export default function State() {
+    const [history, setHistory] = useState<StateSummary[]>([]);
+
+    useEffect(() => {
+        const eventSource = new EventSource('http://localhost:8080/state');
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("oskar updating history", data);
+            setHistory(old => [data, ...old].slice(0, 30));
+        };
+
+        return () => eventSource.close();
+    }, []);
+
+    return (
+        <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Game State</h1>
+            {history.length > 0 && <VisualState state={history[0]}/>}
+            <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="font-bold mb-2">Latest Events</h2>
+                <div className="space-y-2">
+                    {history.map((h, i) => (
+                        <div key={i} className="flex items-center space-x-2 text-sm">
+                            <span>{h.latestEvent?.event} {h.latestEvent?.player}</span>
+                            <span>{h.rallyState} {h.possession} {h.gamePoints.Red}:{h.gamePoints.Black}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function VisualState({state}: { state: StateSummary }) {
+
+    const isPlayerActive = (player: Player) => state.possession === player;
+
+    return (
+        <div className="p-8 space-y-8">
+            {/* Score Display */}
+            <div className="flex justify-center items-center gap-16">
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Red) ? 'text-red-600' : ''}`}>
+                    {state.gamePoints.Red}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Red})</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-400">vs</div>
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Black) ? 'text-black' : ''}`}>
+                    {state.gamePoints.Black}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Black})</span>
+                </div>
+            </div>
+
+            {/* Rally State */}
+            <div className="text-center text-lg">
+                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.player || 'none'}
+            </div>
+        </div>
+    );
+}
+--- frontend/src/app/components/Simulator.tsx ---
+
+'use client';
+
+import {EventType, StateSummary, Player, ErrorResponse} from "@/lib/types";
+import {useState} from "react";
+
+const highlight = 'outline outline-4 outline-yellow-400';
+
+export default function Simulator() {
+    const [state, setState] = useState<StateSummary | ErrorResponse>();
+
+    const sendEvent = async (event: EventType, player?: Player) => {
+        try {
+            const response = await fetch('http://localhost:8080/event', {
+                method: 'POST',
+                body: JSON.stringify({ event, player: player || null })
+            });
+            setState(await response.json());
+        } catch (e) {
+            console.error("Event error:", e);
+        }
+    };
+
+    const isLatestEvent = (event: EventType, player?: Player) => {
+        if (!state || 'error' in state) return false;
+        return state.latestEvent?.event === event && (!player || state.latestEvent?.player === player);
+    };
+
+    const Button = ({ onClick, className, children }: any) => (
+        <button onClick={onClick} className={`px-4 py-2 rounded hover:opacity-90 ${className}`}>
+            {children}
+        </button>
+    );
+
+    return (
+        <div className="h-screen flex flex-col p-8">
+            <h1 className="text-2xl font-bold mb-4">Event Simulator</h1>
+            <button
+                onClick={() => sendEvent(EventType.Out)}
+                className={`mb-8 h-32 bg-gray-100 hover:bg-gray-200 rounded-lg ${
+                    isLatestEvent(EventType.Out) ? 'outline outline-4 outline-yellow-400' : ''
+                }`}
+            >
+                Out
+            </button>
+
+            <div className="flex items-center justify-center gap-8">
+                <div className="flex items-center gap-4">
+                    <span className="text-2xl font-bold">Red</span>
+                    <div className="flex flex-col gap-2">
+                        <Button
+                            onClick={() => sendEvent(EventType.Throw, Player.Red)}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                        >
+                            Throw
+                        </Button>
+                        <Button
+                            onClick={() => sendEvent(EventType.Racket, Player.Red)}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                        >
+                            Racket
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="flex border-2 border-gray-400 rounded">
+                    <button
+                        onClick={() => sendEvent(EventType.Board, Player.Red)}
+                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 ${
+                            isLatestEvent(EventType.Board, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''
+                        }`}
+                    >
+                        Red Side
+                    </button>
+                    <button
+                        onClick={() => sendEvent(EventType.Net)}
+                        className={`w-4 h-32 bg-gray-300 hover:bg-gray-400 ${
+                            isLatestEvent(EventType.Net) ? 'outline outline-4 outline-yellow-400' : ''
+                        }`}
+                    />
+                    <button
+                        onClick={() => sendEvent(EventType.Board, Player.Black)}
+                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 ${
+                            isLatestEvent(EventType.Board, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''
+                        }`}
+                    >
+                        Black Side
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-2">
+                        <Button
+                            onClick={() => sendEvent(EventType.Throw, Player.Black)}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                        >
+                            Throw
+                        </Button>
+                        <Button
+                            onClick={() => sendEvent(EventType.Racket, Player.Black)}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                        >
+                            Racket
+                        </Button>
+                    </div>
+                    <span className="text-2xl font-bold">Black</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+--- frontend/src/app/score/page.tsx ---
+
+import Scoreboard from "@/app/components/Scoreboard";
+
+export default function Score() {
+    return (
+        <div>
+            <Scoreboard />
+        </div>
+    )
+}
+--- frontend/src/app/layout.tsx ---
+
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
+
+--- frontend/src/app/page.tsx ---
+
+import State from "@/app/components/State";
+import Simulator from "@/app/components/Simulator";
+
+export default function Home() {
+    return (
+        <div>
+            <State />
+            <Simulator />
+        </div>
+    )
+}
+--- frontend/src/lib/types.ts ---
+
+// Events
+export enum EventType {
+    Throw = 'Throw', ExitTable = 'ExitTable', Net = 'Net', // serves
+    Racket = 'Racket', Board = 'Board', Out = 'Out',
+}
+
+export enum Player {
+    Red = 'Red',
+    Black = 'Black',
+}
+
+export type Event = {
+    event: EventType,
+    player?: Player,
+};
+
+export type NewMatch = {
+    playerRed: string,
+    playerBlack: string,
+    bestOf: number,
+    firstServer: Player,
+}
+
+
+// State: Latest ball event gives name
+export enum RallyState {
+    // Serve states
+    Idle = 'Idle',
+    ToServe = 'ToServe',
+    ServeRacket = 'ToBounce1',
+    ServeOwnBoard = 'ToBounce2',
+    ServeNet = 'NetServe',
+    // Return states
+    ToStrike = 'ToStrike',
+    Board = 'ToBounce',
+}
+
+export type Points = {
+    Red: number,
+    Black: number,
+}
+
+export type StateSummary = {
+    latestEvent?: Event,
+    rallyState: RallyState,
+    possession: Player,
+    gamePoints: Points,
+    setPoints: Points,
+}
+
+export type ErrorResponse = {
+    error: string,
+}
