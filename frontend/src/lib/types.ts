@@ -44,6 +44,8 @@ export type StateSummary = {
     latestEvent?: Event,
     rallyState: RallyState,
     possession: Player,
+    latestInput?: Input,
+    firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
 }
