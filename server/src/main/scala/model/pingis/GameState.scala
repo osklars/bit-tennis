@@ -1,10 +1,11 @@
 package model.pingis
 
 import model.api.in.{Event, Input}
+import model.types
 import model.types.EventType.*
 import model.types.InputAction.{Decrease, Increase}
 import model.types.RallyState.*
-import model.types.{EventType, Player, Points, RallyState}
+import model.types.{EventType, InputAction, Player, Points, RallyState}
 
 case object GameState:
   def apply(firstServer: Player): GameState =
@@ -61,7 +62,7 @@ case class GameState
       points = points,
     )
   
-  def process(input: Input): Option[GameState] = Option(input.action).collect {
-    case Increase => handle(points.inc(input.player))
-    case Decrease => handle(points.dec(input.player))
+  def process(action: InputAction, player: Player): Option[GameState] = Option(action).collect {
+    case Increase => handle(points.inc(player))
+    case Decrease => handle(points.dec(player))
   }

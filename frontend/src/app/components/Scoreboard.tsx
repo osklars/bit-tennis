@@ -4,6 +4,7 @@ import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
 import Link from "next/link";
 import {Opponent} from "@/lib/utils";
+import {ChevronDown, ChevronUp} from "lucide-react";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
     <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
@@ -17,6 +18,7 @@ function PlayerScore
      isServing,
      isSecondServe,
      isTwoServesEach,
+     isRightSide,
      bgColor,
      player
  }: {
@@ -26,6 +28,7 @@ function PlayerScore
     isServing: boolean
     isSecondServe: boolean
     isTwoServesEach: boolean
+    isRightSide?: boolean
     bgColor: string
     player: Player
 }) {
@@ -41,12 +44,15 @@ function PlayerScore
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col p-8 items-center justify-between text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-[5vh]">{name}</div>
-            <div className="text-[5vh]">{setScore}</div>
-            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
-            <div className="flex gap-4">
+            <div className="text-[5vh] flex-1">{name}</div>
+            <div className={`w-full flex flex-2 items-center ${isRightSide ? 'flex-row-reverse text-end' : ''}`}>
+                <div className="text-[10vh] flex-1">{setScore}</div>
+                <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="flex-2 text-center font-bold mb-0">{gameScore}</div>
+                <div className="flex-1"/>
+            </div>
+            <div className="flex-1 flex gap-4">
                 <ServeIndicator active={isServing && !isSecondServe}/>
                 {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
             </div>
@@ -63,6 +69,25 @@ function PlayerScore
         </div>
     );
 };
+
+function HiddenButtons() {
+    const [hidden, setHidden] = useState(true);
+    
+    return (
+        <div className="absolute z-10 flex flex-col w-full items-center justify-center bottom-0 bg-gradient-to-t from-transparent to-white/20">
+            <button onClick={() => setHidden(!hidden)}>
+                {hidden ? <ChevronUp color={"white"} height={64} width={128}/> : <ChevronDown color={"white"} height={64} width={128}/>}
+            </button>
+            {!hidden &&
+                <Link
+                    href="/setup"
+                    className="m-8 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
+                >
+                    New Game
+                </Link>}
+        </div>
+    );
+}
 
 
 function Scoreboard() {
@@ -108,22 +133,18 @@ function Scoreboard() {
             player: Player.Black,
         }
     }
+    
+    const leftPlayer = (state.setPoints.Red + state.setPoints.Black) % 2 == 0 ? Player.Red : Player.Black;
 
     return (
-        <div className="flex w-screen h-dvh">
-            <div className="absolute flex w-full justify-center py-16">
-                <Link
-                    href="/setup"
-                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
-                >
-                    New Game
-                </Link>
-            </div>
+        <div className="flex w-screen h-dvh overflow-hidden">
+            <HiddenButtons />
             <PlayerScore
-                {...playerScores[state.firstServer]}
+                {...playerScores[leftPlayer]}
             />
             <PlayerScore
-                {...playerScores[Opponent(state.firstServer)]}
+                {...playerScores[Opponent(leftPlayer)]}
+                isRightSide
             />
         </div>
     );
