@@ -59,7 +59,7 @@ package model.types
 import upickle.default.*
 
 enum InputAction derives ReadWriter:
-  case Increase, Decrease
+  case Increase, Decrease, Reset
 
 --- server/src/main/scala/model/types/EventType.scala ---
 
@@ -137,11 +137,15 @@ case class SetState
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
-      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Red))
+      newGame(points.inc(Player.Red))
     case GameState(_, _, p, _) if p.Black >= 11 && p.Black >= p.Red + 2 =>
-      copy(game = GameState(firstServer.opponent), points = points.inc(Player.Black))
+      newGame(points.inc(Player.Black))
     case g => copy(game = g)
   }
+
+  private def newGame(points: Points): SetState =
+    val nextServer = if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent
+    copy(game = GameState(nextServer), points = points)
   
 
 --- server/src/main/scala/model/pingis/GameState.scala ---
@@ -218,6 +222,7 @@ case class GameState
 package model.pingis
 
 import model.api.in.{Event, Input, NewMatch}
+import model.types.InputAction.Reset
 import model.types.Player
 import upickle.default.*
 
@@ -233,12 +238,11 @@ case class MatchState
   set: SetState = SetState(Player.Red),
 ):
   def process(event: Event): Option[MatchState] =
-    set.process(event)
-      .map(newSet => copy(set = newSet))
+    set.process(event).map(newSet => copy(set = newSet))
   
-  def process(input: Input): Option[MatchState] =
-    set.process(input)
-      .map(newSet => copy(set = newSet))
+  def process(input: Input): Option[MatchState] = input.action match
+    case Reset => Some(MatchState(set = SetState(input.player)))
+    case _ => set.process(input).map(newSet => copy(set = newSet))
 
 --- server/src/main/scala/model/api/out/InvalidInput.scala ---
 
@@ -274,19 +278,25 @@ case class InvalidEvent(event: Event, state: StateSummary)
 
 package model.api.out
 
-import model.api.in.{Event, Input, NewMatch}
+import model.api.in.{Event, Input}
 import model.pingis.MatchState
 import model.types.{Player, Points, RallyState}
 import upickle.default.*
 
 case class StateSummary
 (
+  // Only with vision
   latestEvent: Option[Event] = None,
-  latestInput: Option[Input] = None,
   rallyState: RallyState,
   possession: Player,
+  // Needed for UI
+  latestInput: Option[Input] = None,
+  firstServer: Player,
   gamePoints: Points,
-  setPoints: Points
+  setPoints: Points,
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
 ) derives ReadWriter
 
 object StateSummary:
@@ -295,8 +305,12 @@ object StateSummary:
     StateSummary(
       rallyState = matchState.set.game.rallyState,
       possession = matchState.set.game.possession,
+      firstServer = matchState.set.game.firstServer,
       gamePoints = matchState.set.game.points,
       setPoints = matchState.set.points,
+      playerRed = matchState.playerRed,
+      playerBlack = matchState.playerBlack,
+      bestOf = matchState.bestOf,
     )
 
   def apply(event: Event, matchState: MatchState): StateSummary =
@@ -466,45 +480,91 @@ class Routes(service: StateService) extends Http4sDsl[IO]:
 
 === Frontend ===
 
+--- frontend/src/app/setup/page.tsx ---
+
+import SetupForm from "@/app/components/SetupForm";
+
+export default function Setup() {
+    return (
+        <div className="h-screen flex items-center justify-center">
+            <SetupForm />
+        </div>
+    )
+}
 --- frontend/src/app/components/Scoreboard.tsx ---
 
 'use client'
 
 import React, {useEffect, useState} from 'react';
-import { StateSummary } from '@/lib/types';
+import {InputAction, Player, StateSummary} from '@/lib/types';
+import Link from "next/link";
+import {Opponent} from "@/lib/utils";
 
-const ServeIndicator = ({ active }: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
+const ServeIndicator = ({active}: { active: boolean }) => (
+    <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
-const PlayerScore = ({
-                         setScore,
-                         gameScore,
-                         isServing,
-                         isSecondServe,
-                         bgColor
-                     }: {
+function PlayerScore
+({
+     name,
+     setScore,
+     gameScore,
+     isServing,
+     isSecondServe,
+     isTwoServesEach,
+     bgColor,
+     player
+ }: {
+    name: string
     setScore: number
     gameScore: number
     isServing: boolean
     isSecondServe: boolean
+    isTwoServesEach: boolean
     bgColor: string
-}) => (
-    <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white`}>
-        <div className="text-3xl mb-8">{setScore}</div>
-        <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
-        <div className="flex gap-4">
-            <ServeIndicator active={isServing} />
-            <ServeIndicator active={isServing && isSecondServe} />
-        </div>
-    </div>
-);
+    player: Player
+}) {
+    const sendInput = async (action: InputAction) => {
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
+                method: 'POST',
+                body: JSON.stringify({action, player})
+            });
+        } catch (e) {
+            console.error("Input error:", e);
+        }
+    };
 
-const Scoreboard = () => {
+    return (
+        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
+            {/* Original content stays the same */}
+            <div className="text-[5vh]">{name}</div>
+            <div className="text-[5vh]">{setScore}</div>
+            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
+            <div className="flex gap-4">
+                <ServeIndicator active={isServing && !isSecondServe}/>
+                {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
+            </div>
+
+            {/* Clickable overlays */}
+            <div
+                className="absolute top-0 left-0 w-full h-1/2 cursor-pointer hover:bg-white/10 active:bg-white/20 transition-colors"
+                onClick={() => sendInput(InputAction.Increase)}
+            />
+            <div
+                className="absolute bottom-0 left-0 w-full h-1/2 cursor-pointer hover:bg-white/10 active:bg-white/20 transition-colors"
+                onClick={() => sendInput(InputAction.Decrease)}
+            />
+        </div>
+    );
+};
+
+
+function Scoreboard() {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             setState(JSON.parse(event.data));
         };
@@ -513,34 +573,130 @@ const Scoreboard = () => {
 
     if (!state) return null;
 
-    const isPlayerAServing = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+    const isTwoServesEach = state.gamePoints.Red + state.gamePoints.Black < 20
+    const isFirstServer = isTwoServesEach ?
         ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
         (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
     const isSecondServe =
-        (state.gamePoints.Red + state.gamePoints.Black < 20) &&
+        isTwoServesEach &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
+    const playerScores = {
+        Red: {
+            name: state.playerRed,
+            setScore: state.setPoints.Red,
+            gameScore: state.gamePoints.Red,
+            isServing: (state.firstServer === Player.Red) === isFirstServer,
+            isSecondServe,
+            isTwoServesEach,
+            bgColor:"bg-red-600",
+            player: Player.Red,
+        },
+        Black: {
+            name: state.playerBlack,
+            setScore: state.setPoints.Black,
+            gameScore: state.gamePoints.Black,
+            isServing: (state.firstServer === Player.Black) === isFirstServer,
+            isSecondServe,
+            isTwoServesEach,
+            bgColor:"bg-black",
+            player: Player.Black,
+        }
+    }
+
     return (
-        <div className="flex w-screen h-screen">
+        <div className="flex w-screen h-dvh">
+            <div className="absolute flex w-full justify-center py-16">
+                <Link
+                    href="/setup"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
+                >
+                    New Game
+                </Link>
+            </div>
             <PlayerScore
-                setScore={state.setPoints.Red}
-                gameScore={state.gamePoints.Red}
-                isServing={isPlayerAServing}
-                isSecondServe={isSecondServe}
-                bgColor="bg-red-600"
+                {...playerScores[state.firstServer]}
             />
             <PlayerScore
-                setScore={state.setPoints.Black}
-                gameScore={state.gamePoints.Black}
-                isServing={!isPlayerAServing}
-                isSecondServe={isSecondServe}
-                bgColor="bg-black"
+                {...playerScores[Opponent(state.firstServer)]}
             />
         </div>
     );
 };
 
 export default Scoreboard;
+--- frontend/src/app/components/SetupForm.tsx ---
+
+'use client';
+
+import {useState} from 'react';
+import {redirect, useRouter} from 'next/navigation';
+import {NewMatch, Player} from '@/lib/types';
+
+async function submitForm(formData: FormData) {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
+        method: 'POST',
+        body: JSON.stringify({
+            playerRed: formData.get('playerRed'),
+            playerBlack: formData.get('playerBlack'),
+            bestOf: Number(formData.get('bestOf')),
+            firstServer: formData.get('firstServer')
+        })
+    });
+    redirect('/score');
+}
+
+export default function SetupForm() {
+    return (
+        <form action={submitForm}>
+            <div className="flex w-screen h-screen">
+                <div className="bg-red-600 w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerRed"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Red"
+                    />
+                </div>
+
+                <div
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-white">
+                    VS
+                </div>
+
+                <div className="bg-black w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerBlack"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Black"
+                    />
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center py-[25vh] gap-4">
+                    <select
+                        name="bestOf"
+                        className="p-2 border rounded text-black"
+                    >
+                        <option value={1}>Best of 1</option>
+                        <option value={3}>Best of 3</option>
+                        <option value={5}>Best of 5</option>
+                    </select>
+                    <select
+                        name="firstServer"
+                        className="p-2 border rounded text-black"
+                    >
+                        <option value={Player.Red}>Red serves first</option>
+                        <option value={Player.Black}>Black serves first</option>
+                    </select>
+                    <button type="submit" className="p-2 bg-white rounded shadow hover:bg-gray-100 text-black">
+                        Start Game
+                    </button>
+                </div>
+            </div>
+        </form>
+    );
+}
 --- frontend/src/app/components/State.tsx ---
 
 'use client';
@@ -552,7 +708,7 @@ export default function State() {
     const [history, setHistory] = useState<StateSummary[]>([]);
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("oskar updating history", data);
@@ -614,14 +770,14 @@ function VisualState({state}: { state: StateSummary }) {
 import {EventType, StateSummary, Player, ErrorResponse} from "@/lib/types";
 import {useState} from "react";
 
-const highlight = 'outline outline-4 outline-yellow-400';
+const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
 
 export default function Simulator() {
     const [state, setState] = useState<StateSummary | ErrorResponse>();
 
     const sendEvent = async (event: EventType, player?: Player) => {
         try {
-            const response = await fetch('http://localhost:8080/event', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
                 method: 'POST',
                 body: JSON.stringify({ event, player: player || null })
             });
@@ -648,36 +804,38 @@ export default function Simulator() {
             <button
                 onClick={() => sendEvent(EventType.Out)}
                 className={`mb-8 h-32 bg-gray-100 hover:bg-gray-200 rounded-lg ${
-                    isLatestEvent(EventType.Out) ? 'outline outline-4 outline-yellow-400' : ''
+                    isLatestEvent(EventType.Out) ? highlight : ''
                 }`}
             >
                 Out
             </button>
 
+            {/* Main content - added z-10 to stay above out area */}
             <div className="flex items-center justify-center gap-8">
                 <div className="flex items-center gap-4">
                     <span className="text-2xl font-bold">Red</span>
                     <div className="flex flex-col gap-2">
                         <Button
                             onClick={() => sendEvent(EventType.Throw, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
                             onClick={() => sendEvent(EventType.Racket, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
                     </div>
                 </div>
 
+                {/* Table */}
                 <div className="flex border-2 border-gray-400 rounded">
                     <button
                         onClick={() => sendEvent(EventType.Board, Player.Red)}
-                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 ${
-                            isLatestEvent(EventType.Board, Player.Red) ? 'outline outline-4 outline-yellow-400' : ''
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Player.Red) ? highlight : ''
                         }`}
                     >
                         Red Side
@@ -685,30 +843,31 @@ export default function Simulator() {
                     <button
                         onClick={() => sendEvent(EventType.Net)}
                         className={`w-4 h-32 bg-gray-300 hover:bg-gray-400 ${
-                            isLatestEvent(EventType.Net) ? 'outline outline-4 outline-yellow-400' : ''
+                            isLatestEvent(EventType.Net) ? highlight : ''
                         }`}
                     />
                     <button
                         onClick={() => sendEvent(EventType.Board, Player.Black)}
-                        className={`w-48 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 ${
-                            isLatestEvent(EventType.Board, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Player.Black) ? highlight : ''
                         }`}
                     >
                         Black Side
                     </button>
                 </div>
 
+                {/* Right side */}
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
                         <Button
                             onClick={() => sendEvent(EventType.Throw, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
                             onClick={() => sendEvent(EventType.Racket, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? 'outline outline-4 outline-yellow-400' : ''}`}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
@@ -780,6 +939,13 @@ export default function Home() {
         </div>
     )
 }
+--- frontend/src/lib/utils.ts ---
+
+import {Player} from "@/lib/types";
+
+export function Opponent(player: Player) {
+    return player === Player.Red ? Player.Black : Player.Red;
+}
 --- frontend/src/lib/types.ts ---
 
 // Events
@@ -828,10 +994,26 @@ export type StateSummary = {
     latestEvent?: Event,
     rallyState: RallyState,
     possession: Player,
+    latestInput?: Input,
+    firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
+    playerRed: string,
+    playerBlack: string,
+    bestOf: number,
 }
 
 export type ErrorResponse = {
     error: string,
+}
+
+// Input
+export type Input = {
+    action: InputAction,
+    player: Player,
+}
+
+export enum InputAction {
+    Increase = 'Increase',
+    Decrease = 'Decrease',
 }

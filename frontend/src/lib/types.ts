@@ -44,8 +44,13 @@ export type StateSummary = {
     latestEvent?: Event,
     rallyState: RallyState,
     possession: Player,
+    latestInput?: Input,
+    firstServer: Player,
     gamePoints: Points,
     setPoints: Points,
+    playerRed: string,
+    playerBlack: string,
+    bestOf: number,
 }
 
 export type ErrorResponse = {

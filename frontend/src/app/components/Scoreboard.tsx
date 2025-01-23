@@ -2,31 +2,38 @@
 
 import React, {useEffect, useState} from 'react';
 import {InputAction, Player, StateSummary} from '@/lib/types';
+import Link from "next/link";
+import {Opponent} from "@/lib/utils";
 
-const ServeIndicator = ({ active }: { active: boolean }) => (
-    <div className={`w-32 h-32 rounded-full border-8 border-white ${active ? 'bg-white' : ''}`} />
+const ServeIndicator = ({active}: { active: boolean }) => (
+    <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
 );
 
-const PlayerScore = ({
-                         setScore,
-                         gameScore,
-                         isServing,
-                         isSecondServe,
-                         bgColor,
-                         player
-                     }: {
+function PlayerScore
+({
+     name,
+     setScore,
+     gameScore,
+     isServing,
+     isSecondServe,
+     isTwoServesEach,
+     bgColor,
+     player
+ }: {
+    name: string
     setScore: number
     gameScore: number
     isServing: boolean
     isSecondServe: boolean
+    isTwoServesEach: boolean
     bgColor: string
     player: Player
-}) => {
+}) {
     const sendInput = async (action: InputAction) => {
         try {
-            await fetch('http://localhost:8080/input', {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
                 method: 'POST',
-                body: JSON.stringify({ action, player })
+                body: JSON.stringify({action, player})
             });
         } catch (e) {
             console.error("Input error:", e);
@@ -34,13 +41,14 @@ const PlayerScore = ({
     };
 
     return (
-        <div className={`${bgColor} w-1/2 h-screen flex flex-col items-center justify-center text-white relative`}>
+        <div className={`${bgColor} w-1/2 h-full flex flex-col items-center justify-center text-white relative`}>
             {/* Original content stays the same */}
-            <div className="text-3xl mb-8">{setScore}</div>
-            <div style={{ fontSize: '45vh', lineHeight: '45vh' }} className="font-bold mb-8">{gameScore}</div>
+            <div className="text-[5vh]">{name}</div>
+            <div className="text-[5vh]">{setScore}</div>
+            <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="font-bold mb-0">{gameScore}</div>
             <div className="flex gap-4">
-                <ServeIndicator active={isServing} />
-                <ServeIndicator active={isServing && isSecondServe} />
+                <ServeIndicator active={isServing && !isSecondServe}/>
+                {isTwoServesEach && <ServeIndicator active={isServing && isSecondServe}/>}
             </div>
 
             {/* Clickable overlays */}
@@ -56,11 +64,12 @@ const PlayerScore = ({
     );
 };
 
-const Scoreboard = () => {
+
+function Scoreboard() {
     const [state, setState] = useState<StateSummary>();
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             setState(JSON.parse(event.data));
         };
@@ -69,30 +78,52 @@ const Scoreboard = () => {
 
     if (!state) return null;
 
-    const isPlayerAServing = state.gamePoints.Red + state.gamePoints.Black < 20 ?
+    const isTwoServesEach = state.gamePoints.Red + state.gamePoints.Black < 20
+    const isFirstServer = isTwoServesEach ?
         ((state.gamePoints.Red + state.gamePoints.Black) % 4 < 2) :
         (state.gamePoints.Red + state.gamePoints.Black) % 2 == 0;
     const isSecondServe =
-        (state.gamePoints.Red + state.gamePoints.Black < 20) &&
+        isTwoServesEach &&
         ((state.gamePoints.Red + state.gamePoints.Black) % 2 == 1);
 
+    const playerScores = {
+        Red: {
+            name: state.playerRed,
+            setScore: state.setPoints.Red,
+            gameScore: state.gamePoints.Red,
+            isServing: (state.firstServer === Player.Red) === isFirstServer,
+            isSecondServe,
+            isTwoServesEach,
+            bgColor:"bg-red-600",
+            player: Player.Red,
+        },
+        Black: {
+            name: state.playerBlack,
+            setScore: state.setPoints.Black,
+            gameScore: state.gamePoints.Black,
+            isServing: (state.firstServer === Player.Black) === isFirstServer,
+            isSecondServe,
+            isTwoServesEach,
+            bgColor:"bg-black",
+            player: Player.Black,
+        }
+    }
+
     return (
-        <div className="flex w-screen h-screen">
+        <div className="flex w-screen h-dvh">
+            <div className="absolute flex w-full justify-center py-16">
+                <Link
+                    href="/setup"
+                    className="absolute z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black"
+                >
+                    New Game
+                </Link>
+            </div>
             <PlayerScore
-                setScore={state.setPoints.Red}
-                gameScore={state.gamePoints.Red}
-                isServing={isPlayerAServing}
-                isSecondServe={isSecondServe}
-                bgColor="bg-red-600"
-                player={Player.Red}
+                {...playerScores[state.firstServer]}
             />
             <PlayerScore
-                setScore={state.setPoints.Black}
-                gameScore={state.gamePoints.Black}
-                isServing={!isPlayerAServing}
-                isSecondServe={isSecondServe}
-                bgColor="bg-black"
-                player={Player.Black}
+                {...playerScores[Opponent(state.firstServer)]}
             />
         </div>
     );

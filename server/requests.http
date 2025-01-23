@@ -10,7 +10,7 @@ Content-Type: application/json
 
 {
   "event": "Racket",
-  "player": "A"
+  "player": "Red"
 }
 
 ### Post New Match
@@ -24,5 +24,5 @@ Content-Type: application/json
   "playerA": "Oskar",
   "playerB": "Daniel",
   "bestOf": 3,
-  "firstServer": "A"
+  "firstServer": "Red"
 }

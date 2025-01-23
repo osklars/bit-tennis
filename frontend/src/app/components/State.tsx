@@ -7,7 +7,7 @@ export default function State() {
     const [history, setHistory] = useState<StateSummary[]>([]);
 
     useEffect(() => {
-        const eventSource = new EventSource('http://localhost:8080/state');
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.log("oskar updating history", data);
