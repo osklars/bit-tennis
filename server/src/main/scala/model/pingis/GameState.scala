@@ -21,34 +21,34 @@ case class GameState
   points: Points = Points(0, 0),
   firstServer: Player = Player.Red,
 ):
-  def process(event: Event): Option[GameState] =
-    Option(rallyState, event).collect {
+  def process(event: EventType, player: Option[Player]): Option[GameState] =
+    Option(rallyState, event, player).collect {
       // serving
-      case (Idle, Event(Throw, Some(this.possession))) => copy(ToServe)
+      case (Idle, Throw, Some(this.possession)) => copy(ToServe)
 
-      case (ToServe, Event(Racket, Some(this.possession))) => copy(ToBounce1)
-      case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
+      case (ToServe, Racket, Some(this.possession)) => copy(ToBounce1)
+      case (ToServe, _, _) => copy(Idle) // ignore events until rally starts with a proper serve
 
-      case (ToBounce1, Event(Board, Some(this.possession))) => copy(ToBounce2)
-      case (ToBounce1, _) => handle(points.inc(possession.opponent))
+      case (ToBounce1, Board, Some(this.possession)) => copy(ToBounce2)
+      case (ToBounce1, _, _) => handle(points.inc(possession.opponent))
 
-      case (ToBounce2, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce2, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
-      case (ToBounce2, Event(Net, _)) => copy(NetServe)
-      case (ToBounce2, _) => handle(points.inc(possession.opponent))
+      case (ToBounce2, Board, Some(possession.opponent)) => copy(ToStrike, possession.opponent)
+      case (ToBounce2, Racket, Some(possession.opponent)) => handle(points.inc(possession))
+      case (ToBounce2, Net, _) => copy(NetServe)
+      case (ToBounce2, _, _) => handle(points.inc(possession.opponent))
 
-      case (NetServe, Event(Board, Some(possession.opponent))) => copy(Idle)
-      case (NetServe, Event(Net, _)) => this
-      case (NetServe, _) => handle(points.inc(possession.opponent))
+      case (NetServe, Board, Some(possession.opponent)) => copy(Idle)
+      case (NetServe, Net, _) => this
+      case (NetServe, _, _) => handle(points.inc(possession.opponent))
 
       // returning
-      case (ToStrike, Event(Racket, Some(this.possession))) => copy(ToBounce, possession)
-      case (ToStrike, _) => handle(points.inc(possession.opponent))
+      case (ToStrike, Racket, Some(this.possession)) => copy(ToBounce, possession)
+      case (ToStrike, _, _) => handle(points.inc(possession.opponent))
 
-      case (ToBounce, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
-      case (ToBounce, Event(Net, _)) => this
-      case (ToBounce, _) => handle(points.inc(possession.opponent))
+      case (ToBounce, Board, Some(possession.opponent)) => copy(ToStrike, possession.opponent)
+      case (ToBounce, Racket, Some(possession.opponent)) => handle(points.inc(possession))
+      case (ToBounce, Net, _) => this
+      case (ToBounce, _, _) => handle(points.inc(possession.opponent))
     }
   
   private def handle(points: Points): GameState =

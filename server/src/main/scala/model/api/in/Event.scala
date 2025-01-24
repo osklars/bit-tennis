@@ -1,10 +1,10 @@
 package model.api.in
 
-import model.types.{EventType, Player}
+import model.types.{EventType, Player, Side}
 import upickle.default.*
 
 case class Event
 (
   event: EventType,
-  player: Option[Player],
+  side: Option[Side],
 ) derives ReadWriter
