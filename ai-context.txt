@@ -1,3 +1,77 @@
+=== Structure ===
+./
+|-- README.md
+|-- ai-context.txt
+|-- dump-context.sh*
+|-- frontend/
+|   |-- README.md
+|   |-- eslint.config.mjs
+|   |-- next-env.d.ts
+|   |-- next.config.ts
+|   |-- package-lock.json
+|   |-- package.json
+|   |-- postcss.config.mjs
+|   |-- project-structure.txt
+|   |-- public/
+|   |   |-- file.svg
+|   |   |-- globe.svg
+|   |   |-- next.svg
+|   |   |-- vercel.svg
+|   |   `-- window.svg
+|   |-- src/
+|   |   |-- app/
+|   |   |   |-- components/
+|   |   |   |   |-- Scoreboard.tsx
+|   |   |   |   |-- SetupForm.tsx
+|   |   |   |   |-- Simulator.tsx
+|   |   |   |   `-- State.tsx
+|   |   |   |-- favicon.ico
+|   |   |   |-- globals.css
+|   |   |   |-- layout.tsx
+|   |   |   |-- page.tsx
+|   |   |   |-- score/
+|   |   |   |   `-- page.tsx
+|   |   |   `-- setup/
+|   |   |       `-- page.tsx
+|   |   `-- lib/
+|   |       |-- types.ts
+|   |       `-- utils.ts
+|   |-- tailwind.config.ts
+|   `-- tsconfig.json
+`-- server/
+    |-- Dockerfile
+    |-- README.md
+    |-- build.sbt
+    |-- requests.http
+    `-- src/
+        `-- main/
+            `-- scala/
+                |-- Codecs.scala
+                |-- Main.scala
+                |-- Routes.scala
+                |-- StateService.scala
+                `-- model/
+                    |-- api/
+                    |   |-- in/
+                    |   |   |-- Event.scala
+                    |   |   |-- Input.scala
+                    |   |   `-- NewMatch.scala
+                    |   `-- out/
+                    |       |-- ErrorResponse.scala
+                    |       |-- InvalidEvent.scala
+                    |       |-- InvalidInput.scala
+                    |       `-- StateSummary.scala
+                    |-- pingis/
+                    |   |-- GameState.scala
+                    |   |-- MatchState.scala
+                    |   `-- SetState.scala
+                    `-- types/
+                        |-- EventType.scala
+                        |-- InputAction.scala
+                        |-- Player.scala
+                        |-- Points.scala
+                        |-- RallyState.scala
+                        `-- Side.scala
 === Scala ===
 
 --- server/src/main/scala/StateService.scala ---
@@ -104,12 +178,24 @@ package model.types
 
 import upickle.default.*
 
+object Player: 
+  def apply(side: Side, setPoints: Points): Player =
+    if (((setPoints.Red + setPoints.Black) % 2 == 0) == (side == Side.Left)) Player.Red else Player.Black
+
 enum Player derives ReadWriter:
   case Red, Black
 
   lazy val opponent: Player = this match
     case Player.Red => Player.Black
     case Player.Black => Player.Red
+--- server/src/main/scala/model/types/Side.scala ---
+
+package model.types
+
+import upickle.default.*
+
+enum Side derives ReadWriter:
+  case Left, Right
 --- server/src/main/scala/model/pingis/SetState.scala ---
 
 package model.pingis
@@ -133,7 +219,7 @@ case class SetState
 ):
   def process(event: Event): Option[SetState] = game.process(event).map(handle)
   
-  def process(input: Input): Option[SetState] = game.process(input).map(handle)
+  def process(input: Input): Option[SetState] = game.process(input.action, Player(input.side, points)).map(handle)
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
@@ -153,10 +239,11 @@ case class SetState
 package model.pingis
 
 import model.api.in.{Event, Input}
+import model.types
 import model.types.EventType.*
 import model.types.InputAction.{Decrease, Increase}
 import model.types.RallyState.*
-import model.types.{EventType, Player, Points, RallyState}
+import model.types.{EventType, InputAction, Player, Points, RallyState}
 
 case object GameState:
   def apply(firstServer: Player): GameState =
@@ -213,9 +300,9 @@ case class GameState
       points = points,
     )
   
-  def process(input: Input): Option[GameState] = Option(input.action).collect {
-    case Increase => handle(points.inc(input.player))
-    case Decrease => handle(points.dec(input.player))
+  def process(action: InputAction, player: Player): Option[GameState] = Option(action).collect {
+    case Increase => handle(points.inc(player))
+    case Decrease => handle(points.dec(player))
   }
 --- server/src/main/scala/model/pingis/MatchState.scala ---
 
@@ -223,7 +310,7 @@ package model.pingis
 
 import model.api.in.{Event, Input, NewMatch}
 import model.types.InputAction.Reset
-import model.types.Player
+import model.types.{Player, Points}
 import upickle.default.*
 
 object MatchState:
@@ -241,7 +328,7 @@ case class MatchState
     set.process(event).map(newSet => copy(set = newSet))
   
   def process(input: Input): Option[MatchState] = input.action match
-    case Reset => Some(MatchState(set = SetState(input.player)))
+    case Reset => Some(MatchState(set = SetState(if (input.side == Left) Player.Red else Player.Black)))
     case _ => set.process(input).map(newSet => copy(set = newSet))
 
 --- server/src/main/scala/model/api/out/InvalidInput.scala ---
@@ -351,13 +438,13 @@ case class NewMatch
 
 package model.api.in
 
-import model.types.{InputAction, Player}
+import model.types.{InputAction, Player, Side}
 import upickle.default.*
   
 case class Input
 (
   action: InputAction,
-  player: Player,
+  side: Side,
 ) derives ReadWriter
 
 --- server/src/main/scala/Codecs.scala ---
@@ -384,8 +471,6 @@ import model.pingis.MatchState
 import org.http4s.*
 import org.http4s.ember.server.EmberServerBuilder
 
-import scala.concurrent.duration.DurationInt
-
 object Main extends IOApp:
   def server: IO[ExitCode] =
     for
@@ -398,11 +483,6 @@ object Main extends IOApp:
         .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
         .build
         .use(_ => IO.never)
-        .handleErrorWith { error =>
-          IO.println(s"Server crashed with error: ${error.getMessage}") *>
-            IO.sleep(5.seconds) *>
-            server // Recursive call to restart
-        }
     yield ExitCode.Success
 
   def run(args: List[String]): IO[ExitCode] = server
@@ -496,9 +576,10 @@ export default function Setup() {
 'use client'
 
 import React, {useEffect, useState} from 'react';
-import {InputAction, Player, StateSummary} from '@/lib/types';
+import {InputAction, Player, Side, StateSummary} from '@/lib/types';
 import Link from "next/link";
 import {Opponent} from "@/lib/utils";
+import {ChevronDown, ChevronUp} from "lucide-react";
 
 const ServeIndicator = ({active}: { active: boolean }) => (
     <div className={`w-[15vh] h-[15vh] rounded-full border-8 border-white ${active ? 'bg-white' : ''}`}/>
@@ -512,7 +593,7 @@ function PlayerScore
      isServing,
      isSecondServe,
      isTwoServesEach,
-     isRightSide,
+     side,
      bgColor,
      player
  }: {
@@ -522,7 +603,7 @@ function PlayerScore
     isServing: boolean
     isSecondServe: boolean
     isTwoServesEach: boolean
-    isRightSide?: boolean
+    side: Side
     bgColor: string
     player: Player
 }) {
@@ -530,7 +611,7 @@ function PlayerScore
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/input`, {
                 method: 'POST',
-                body: JSON.stringify({action, player})
+                body: JSON.stringify({action, side})
             });
         } catch (e) {
             console.error("Input error:", e);
@@ -541,7 +622,7 @@ function PlayerScore
         <div className={`${bgColor} w-1/2 h-full flex flex-col p-8 items-center justify-between text-white relative`}>
             {/* Original content stays the same */}
             <div className="text-[5vh] flex-1">{name}</div>
-            <div className={`w-full flex flex-2 items-center ${isRightSide ? 'flex-row-reverse text-end' : ''}`}>
+            <div className={`w-full flex flex-2 items-center ${side == Side.Right ? 'flex-row-reverse text-end' : ''}`}>
                 <div className="text-[10vh] flex-1">{setScore}</div>
                 <div style={{fontSize: '40vh', lineHeight: '40vh'}} className="flex-2 text-center font-bold mb-0">{gameScore}</div>
                 <div className="flex-1"/>
@@ -563,6 +644,25 @@ function PlayerScore
         </div>
     );
 };
+
+function HiddenButtons() {
+    const [hidden, setHidden] = useState(true);
+    
+    return (
+        <div className="absolute z-10 flex flex-col w-full items-center justify-center bottom-0 bg-gradient-to-t from-transparent to-white/20">
+            <button onClick={() => setHidden(!hidden)}>
+                {hidden ? <ChevronUp color={"white"} height={64} width={128}/> : <ChevronDown color={"white"} height={64} width={128}/>}
+            </button>
+            {!hidden &&
+                <Link
+                    href="/setup"
+                    className="m-8 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
+                >
+                    New Game
+                </Link>}
+        </div>
+    );
+}
 
 
 function Scoreboard() {
@@ -608,23 +708,19 @@ function Scoreboard() {
             player: Player.Black,
         }
     }
+    
+    const leftPlayer = (state.setPoints.Red + state.setPoints.Black) % 2 == 0 ? Player.Red : Player.Black;
 
     return (
-        <div className="flex w-screen h-dvh">
-            <div className="absolute flex w-full justify-center bottom-0 pb-16">
-                <Link
-                    href="/setup"
-                    className="z-10 p-4 bg-white rounded shadow hover:bg-gray-100 text-black font-bold text-[5vh]"
-                >
-                    New Game
-                </Link>
-            </div>
+        <div className="flex w-screen h-dvh overflow-hidden">
+            <HiddenButtons />
             <PlayerScore
-                {...playerScores[state.firstServer]}
+                {...playerScores[leftPlayer]}
+                side={Side.Left}
             />
             <PlayerScore
-                {...playerScores[Opponent(state.firstServer)]}
-                isRightSide
+                {...playerScores[Opponent(leftPlayer)]}
+                side={Side.Right}
             />
         </div>
     );
@@ -679,7 +775,7 @@ export default function SetupForm() {
                     />
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 flex justify-center py-[25vh] gap-4">
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-[25vh] gap-4">
                     <select
                         name="bestOf"
                         className="p-2 border rounded text-black"
@@ -773,7 +869,7 @@ function VisualState({state}: { state: StateSummary }) {
 
 'use client';
 
-import {EventType, StateSummary, Player, ErrorResponse} from "@/lib/types";
+import {EventType, StateSummary, Side, ErrorResponse} from "@/lib/types";
 import {useState} from "react";
 
 const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
@@ -781,11 +877,11 @@ const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
 export default function Simulator() {
     const [state, setState] = useState<StateSummary | ErrorResponse>();
 
-    const sendEvent = async (event: EventType, player?: Player) => {
+    const sendEvent = async (event: EventType, side?: Side) => {
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
                 method: 'POST',
-                body: JSON.stringify({ event, player: player || null })
+                body: JSON.stringify({ event, side })
             });
             setState(await response.json());
         } catch (e) {
@@ -793,9 +889,9 @@ export default function Simulator() {
         }
     };
 
-    const isLatestEvent = (event: EventType, player?: Player) => {
+    const isLatestEvent = (event: EventType, side?: Side) => {
         if (!state || 'error' in state) return false;
-        return state.latestEvent?.event === event && (!player || state.latestEvent?.player === player);
+        return state.latestEvent?.event === event && (!side || state.latestEvent?.side === side);
     };
 
     const Button = ({ onClick, className, children }: any) => (
@@ -819,17 +915,17 @@ export default function Simulator() {
             {/* Main content - added z-10 to stay above out area */}
             <div className="flex items-center justify-center gap-8">
                 <div className="flex items-center gap-4">
-                    <span className="text-2xl font-bold">Red</span>
+                    <span className="text-2xl font-bold">Left</span>
                     <div className="flex flex-col gap-2">
                         <Button
-                            onClick={() => sendEvent(EventType.Throw, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Player.Red) ? highlight : ''}`}
+                            onClick={() => sendEvent(EventType.Throw, Side.Left)}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Side.Left) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
-                            onClick={() => sendEvent(EventType.Racket, Player.Red)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Player.Red) ? highlight : ''}`}
+                            onClick={() => sendEvent(EventType.Racket, Side.Left)}
+                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Side.Left) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
@@ -839,12 +935,12 @@ export default function Simulator() {
                 {/* Table */}
                 <div className="flex border-2 border-gray-400 rounded">
                     <button
-                        onClick={() => sendEvent(EventType.Board, Player.Red)}
+                        onClick={() => sendEvent(EventType.Board, Side.Left)}
                         className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 border-inset ${
-                            isLatestEvent(EventType.Board, Player.Red) ? highlight : ''
+                            isLatestEvent(EventType.Board, Side.Left) ? highlight : ''
                         }`}
                     >
-                        Red Side
+                        Left Side
                     </button>
                     <button
                         onClick={() => sendEvent(EventType.Net)}
@@ -853,12 +949,12 @@ export default function Simulator() {
                         }`}
                     />
                     <button
-                        onClick={() => sendEvent(EventType.Board, Player.Black)}
+                        onClick={() => sendEvent(EventType.Board, Side.Right)}
                         className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 border-inset ${
-                            isLatestEvent(EventType.Board, Player.Black) ? highlight : ''
+                            isLatestEvent(EventType.Board, Side.Right) ? highlight : ''
                         }`}
                     >
-                        Black Side
+                        Right Side
                     </button>
                 </div>
 
@@ -866,19 +962,19 @@ export default function Simulator() {
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
                         <Button
-                            onClick={() => sendEvent(EventType.Throw, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Player.Black) ? highlight : ''}`}
+                            onClick={() => sendEvent(EventType.Throw, Side.Right)}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Side.Right) ? highlight : ''}`}
                         >
                             Throw
                         </Button>
                         <Button
-                            onClick={() => sendEvent(EventType.Racket, Player.Black)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Player.Black) ? highlight : ''}`}
+                            onClick={() => sendEvent(EventType.Racket, Side.Right)}
+                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Side.Right) ? highlight : ''}`}
                         >
                             Racket
                         </Button>
                     </div>
-                    <span className="text-2xl font-bold">Black</span>
+                    <span className="text-2xl font-bold">Right</span>
                 </div>
             </div>
         </div>
@@ -967,7 +1063,7 @@ export enum Player {
 
 export type Event = {
     event: EventType,
-    player?: Player,
+    side?: Side,
 };
 
 export type NewMatch = {
@@ -1022,4 +1118,9 @@ export type Input = {
 export enum InputAction {
     Increase = 'Increase',
     Decrease = 'Decrease',
+}
+
+export enum Side {
+    Left = 'Left',
+    Right = 'Right',
 }

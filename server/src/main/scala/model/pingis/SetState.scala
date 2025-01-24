@@ -17,9 +17,15 @@ case class SetState
   points: Points = Points(0, 0),
   firstServer: Player,
 ):
-  def process(event: Event): Option[SetState] = game.process(event).map(handle)
+  def process(event: Event): Option[SetState] = 
+    game
+      .process(event.event, event.side.map(Player(_, points)))
+      .map(handle)
   
-  def process(input: Input): Option[SetState] = game.process(input.action, Player(input.side, points)).map(handle)
+  def process(input: Input): Option[SetState] = 
+    game
+      .process(input.action, Player(input.side, points))
+      .map(handle)
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>

@@ -19,7 +19,7 @@ object Main extends IOApp:
         .withHost(host"0.0.0.0")
         .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
         .build
-        .use(_ => IO.never)
+        .use(_ => IO.never)        
         .handleErrorWith { error =>
           IO.println(s"Server crashed with error: ${error.getMessage}") *>
             IO.sleep(5.seconds) *>
