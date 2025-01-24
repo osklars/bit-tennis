@@ -11,7 +11,7 @@ export enum Player {
 
 export type Event = {
     event: EventType,
-    player?: Player,
+    side?: Side,
 };
 
 export type NewMatch = {

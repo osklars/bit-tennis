@@ -6,8 +6,6 @@ import model.pingis.MatchState
 import org.http4s.*
 import org.http4s.ember.server.EmberServerBuilder
 
-import scala.concurrent.duration.DurationInt
-
 object Main extends IOApp:
   def server: IO[ExitCode] =
     for
@@ -20,11 +18,6 @@ object Main extends IOApp:
         .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
         .build
         .use(_ => IO.never)
-        .handleErrorWith { error =>
-          IO.println(s"Server crashed with error: ${error.getMessage}") *>
-            IO.sleep(5.seconds) *>
-            server // Recursive call to restart
-        }
     yield ExitCode.Success
 
   def run(args: List[String]): IO[ExitCode] = server
