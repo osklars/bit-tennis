@@ -26,7 +26,7 @@ export default function State() {
                 <div className="space-y-2">
                     {history.map((h, i) => (
                         <div key={i} className="flex items-center space-x-2 text-sm">
-                            <span>{h.latestEvent?.event} {h.latestEvent?.player}</span>
+                            <span>{h.latestEvent?.event} {h.latestEvent?.side}</span>
                             <span>{h.rallyState} {h.possession} {h.gamePoints.Red}:{h.gamePoints.Black}</span>
                         </div>
                     ))}
@@ -57,7 +57,7 @@ function VisualState({state}: { state: StateSummary }) {
 
             {/* Rally State */}
             <div className="text-center text-lg">
-                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.player || 'none'}
+                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.side || 'none'}
             </div>
         </div>
     );

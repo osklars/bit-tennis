@@ -1,16 +1,44 @@
+=== Script ===
+
+--- dump-context.sh ---
+
+#!/bin/bash
+(
+  echo "=== Script ==="
+  echo -e "\n--- dump-context.sh ---\n"
+  cat $0
+  
+  echo -e "\n=== Structure ==="
+  tree -I 'node_modules|.git|.idea|.next|target|.bsp|project' --noreport -F --charset ascii
+  
+  echo -e "\n=== Build ==="
+  echo -e "\n--- server/build.sbt ---\n"
+  cat server/build.sbt
+  
+  echo -e "\n=== Docker ==="
+  echo -e "\n--- docker-compose.yml ---\n"
+  cat docker-compose.yml
+  echo -e "\n--- server/Dockerfile ---\n"
+  cat server/Dockerfile
+  
+  echo -e "\n=== Scala ==="
+  find server/src -type f -name "*.scala" -exec sh -c 'echo "\n--- $1 ---\n"; cat "$1"' _ {} \;
+  
+  echo -e "\n=== Frontend ==="
+  find frontend/src -type f \( -name "*.ts" -o -name "*.tsx" \) -exec sh -c 'echo "\n--- $1 ---\n"; cat "$1"' _ {} \;
+) > ai-context.txt
+
 === Structure ===
 ./
-|-- README.md
 |-- ai-context.txt
 |-- docker-compose.yml
 |-- dump-context.sh*
 |-- frontend/
-|   |-- README.md
 |   |-- eslint.config.mjs
-|   |-- next-env.d.ts
 |   |-- next.config.ts
-|   |-- package-lock.json
+|   |-- next-env.d.ts
 |   |-- package.json
+|   |-- package-lock.json
 |   |-- postcss.config.mjs
 |   |-- project-structure.txt
 |   |-- public/
@@ -19,6 +47,7 @@
 |   |   |-- next.svg
 |   |   |-- vercel.svg
 |   |   `-- window.svg
+|   |-- README.md
 |   |-- src/
 |   |   |-- app/
 |   |   |   |-- components/
@@ -39,40 +68,101 @@
 |   |       `-- utils.ts
 |   |-- tailwind.config.ts
 |   `-- tsconfig.json
+|-- README.md
 `-- server/
+    |-- build.sbt
     |-- Dockerfile
     |-- README.md
-    |-- build.sbt
     |-- requests.http
     `-- src/
         `-- main/
             `-- scala/
                 |-- Codecs.scala
                 |-- Main.scala
+                |-- model/
+                |   |-- api/
+                |   |   |-- in/
+                |   |   |   |-- Event.scala
+                |   |   |   |-- Input.scala
+                |   |   |   `-- NewMatch.scala
+                |   |   `-- out/
+                |   |       |-- ErrorResponse.scala
+                |   |       |-- InvalidEvent.scala
+                |   |       |-- InvalidInput.scala
+                |   |       `-- StateSummary.scala
+                |   |-- pingis/
+                |   |   |-- GameState.scala
+                |   |   |-- MatchState.scala
+                |   |   `-- SetState.scala
+                |   `-- types/
+                |       |-- EventType.scala
+                |       |-- InputAction.scala
+                |       |-- Player.scala
+                |       |-- Points.scala
+                |       |-- RallyState.scala
+                |       `-- Side.scala
                 |-- Routes.scala
-                |-- StateService.scala
-                `-- model/
-                    |-- api/
-                    |   |-- in/
-                    |   |   |-- Event.scala
-                    |   |   |-- Input.scala
-                    |   |   `-- NewMatch.scala
-                    |   `-- out/
-                    |       |-- ErrorResponse.scala
-                    |       |-- InvalidEvent.scala
-                    |       |-- InvalidInput.scala
-                    |       `-- StateSummary.scala
-                    |-- pingis/
-                    |   |-- GameState.scala
-                    |   |-- MatchState.scala
-                    |   `-- SetState.scala
-                    `-- types/
-                        |-- EventType.scala
-                        |-- InputAction.scala
-                        |-- Player.scala
-                        |-- Points.scala
-                        |-- RallyState.scala
-                        `-- Side.scala
+                `-- StateService.scala
+
+=== Build ===
+
+--- server/build.sbt ---
+
+ThisBuild / version := "0.1.0-SNAPSHOT"
+
+val Http4sVersion = "0.23.30"
+
+ThisBuild / scalaVersion := "3.3.4"
+Compile / run / fork := true
+
+
+lazy val root = (project in file("."))
+  .settings(
+    name := "pingu",
+    libraryDependencies ++= Seq(
+      "org.http4s" %% "http4s-ember-server" % Http4sVersion,
+      "org.http4s" %% "http4s-ember-client" % Http4sVersion,
+      "org.http4s" %% "http4s-dsl" % Http4sVersion,
+      "com.lihaoyi" %% "upickle" % "4.0.2"
+    )
+  )
+
+=== Docker ===
+
+--- docker-compose.yml ---
+
+services:
+  backend:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+
+  frontend:
+    image: ghcr.io/railwayapp/nixpacks:latest
+    volumes:
+      - ./frontend:/app
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8081
+    command: "nixpacks build . && yarn dev"
+    depends_on:
+      - backend
+
+--- server/Dockerfile ---
+
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.13_11_1.10.7_3.6.3
+COPY . /app
+WORKDIR /app
+EXPOSE 8081
+
+# Add these lines to build before running
+RUN sbt compile
+
+CMD ["sbt", "run"]
 === Scala ===
 
 --- server/src/main/scala/StateService.scala ---
@@ -127,14 +217,238 @@ class StateService
   def subscribe: Stream[IO, StateSummary] =
     updates
       .subscribeUnbounded
---- server/src/main/scala/model/types/InputAction.scala ---
+--- server/src/main/scala/Main.scala ---
 
-package model.types
+import cats.effect.{ExitCode, IO, IOApp, Ref}
+import com.comcast.ip4s.*
+import fs2.concurrent.Topic
+import model.api.out.StateSummary
+import model.pingis.MatchState
+import org.http4s.*
+import org.http4s.ember.server.EmberServerBuilder
+
+import scala.concurrent.duration.DurationInt
+
+object Main extends IOApp:
+  def server: IO[ExitCode] =
+    for
+      state <- Ref.of[IO, MatchState](MatchState())
+      updates <- Topic[IO, StateSummary]
+      _ <- EmberServerBuilder
+        .default[IO]
+        .withPort(port"8081")
+        .withHost(host"0.0.0.0")
+        .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
+        .build
+        .use(_ => IO.never)        
+        .handleErrorWith { error =>
+          IO.println(s"Server crashed with error: ${error.getMessage}") *>
+            IO.sleep(5.seconds) *>
+            server // Recursive call to restart
+        }
+    yield ExitCode.Success
+
+  def run(args: List[String]): IO[ExitCode] = server
+--- server/src/main/scala/Codecs.scala ---
+
+import cats.effect.Concurrent
+import upickle.default.*
+
+object Codecs:
+
+  import org.http4s.*
+
+  implicit def upickleEncoder[F[_], A: Writer]: EntityEncoder[F, A] =
+    EntityEncoder.stringEncoder[F].contramap[A](write[A](_))
+
+  implicit def upickleDecoder[F[_] : Concurrent, A: Reader]: EntityDecoder[F, A] =
+    EntityDecoder.text[F].map(read[A](_))
+--- server/src/main/scala/Routes.scala ---
+
+import cats.effect.IO
+import model.api.in.{Event, Input, NewMatch}
+import model.api.out.InvalidEvent
+import org.http4s.dsl.Http4sDsl
+import org.http4s.headers.`Content-Type`
+import org.http4s.server.middleware.{CORS, ErrorHandling}
+import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
+import org.typelevel.ci.CIStringSyntax
+import upickle.default.*
+
+class Routes(service: StateService) extends Http4sDsl[IO]:
+
+  import Codecs.*
+
+  private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+    case req@POST -> Root / "new" =>
+      for
+        input <- req.as[NewMatch]
+        _ <- IO.println(s"Starting new match: $input")
+        state <- service.newMatch(input)
+        resp <- Ok(state)
+      yield resp
+
+    case req@POST -> Root / "event" =>
+      for
+        event <- req.as[Event]
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
+          }
+        resp <- result match
+          case Left(value) => Accepted(value)
+          case Right(value) => Ok(value)
+      yield resp
+
+    case req@POST -> Root / "input" =>
+      for
+        event <- req.as[Input]
+        result <- service.process(event)
+          .map(Right.apply)
+          .recover {
+            case i: InvalidEvent =>
+              println(i)
+              Left(i)
+          }
+        resp <- result match
+          case Left(value) => Accepted(value)
+          case Right(value) => Ok(value)
+      yield resp
+
+    case GET -> Root / "state" =>
+      val stream =
+        (fs2.Stream.eval(service.getState) ++ service.subscribe)
+          .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
+          .map(history => s"data: ${write(history)}\n\n")
+          .through(fs2.text.utf8.encode)
+
+      Ok(stream).map(_.withHeaders(
+        `Content-Type`(MediaType.`text/event-stream`),
+        Header.Raw(ci"Cache-Control", "no-cache"),
+        Header.Raw(ci"Connection", "keep-alive")
+      ))
+  }
+
+  val corsRoutes: HttpRoutes[IO] = CORS.policy
+    .withAllowOriginAll(ErrorHandling.httpRoutes(routes))
+--- server/src/main/scala/model/api/out/InvalidInput.scala ---
+
+package model.api.out
+
+import model.api.in.Input
+import model.api.out.StateSummary
+import upickle.default.*
+
+case class InvalidInput(input: Input, state: StateSummary)
+  extends Exception(s"Unhandled input: ${write(input)} with state ${write(state)}") 
+    derives ReadWriter
+--- server/src/main/scala/model/api/out/ErrorResponse.scala ---
+
+package model.api.out
 
 import upickle.default.*
 
-enum InputAction derives ReadWriter:
-  case Increase, Decrease, Reset
+case class ErrorResponse(error: String) derives ReadWriter
+
+--- server/src/main/scala/model/api/out/InvalidEvent.scala ---
+
+package model.api.out
+
+import model.api.in.Event
+import model.api.out.StateSummary
+import upickle.default.*
+
+case class InvalidEvent(event: Event, state: StateSummary) 
+  extends Exception(s"Unhandled event: ${write(event)} with state ${write(state)}") 
+    derives ReadWriter
+--- server/src/main/scala/model/api/out/StateSummary.scala ---
+
+package model.api.out
+
+import model.api.in.{Event, Input}
+import model.pingis.MatchState
+import model.types.{Player, Points, RallyState}
+import upickle.default.*
+
+case class StateSummary
+(
+  // Only with vision
+  latestEvent: Option[Event] = None,
+  rallyState: RallyState,
+  possession: Player,
+  // Needed for UI
+  latestInput: Option[Input] = None,
+  firstServer: Player,
+  gamePoints: Points,
+  setPoints: Points,
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
+) derives ReadWriter
+
+object StateSummary:
+
+  def apply(matchState: MatchState): StateSummary =
+    StateSummary(
+      rallyState = matchState.set.game.rallyState,
+      possession = matchState.set.game.possession,
+      firstServer = matchState.set.game.firstServer,
+      gamePoints = matchState.set.game.points,
+      setPoints = matchState.set.points,
+      playerRed = matchState.playerRed,
+      playerBlack = matchState.playerBlack,
+      bestOf = matchState.bestOf,
+    )
+
+  def apply(event: Event, matchState: MatchState): StateSummary =
+    StateSummary(matchState).copy(latestEvent = Some(event))
+
+  def apply(input: Input, matchState: MatchState): StateSummary =
+    StateSummary(matchState).copy(latestInput = Some(input))
+
+--- server/src/main/scala/model/api/in/Input.scala ---
+
+package model.api.in
+
+import model.types.{InputAction, Player, Side}
+import upickle.default.*
+  
+case class Input
+(
+  action: InputAction,
+  side: Side,
+) derives ReadWriter
+
+--- server/src/main/scala/model/api/in/NewMatch.scala ---
+
+package model.api.in
+
+import model.types.Player
+import upickle.default.*
+
+case class NewMatch
+(
+  playerRed: String,
+  playerBlack: String,
+  bestOf: Int,
+  firstServer: Player,
+) derives ReadWriter
+
+--- server/src/main/scala/model/api/in/Event.scala ---
+
+package model.api.in
+
+import model.types.{EventType, Side}
+import upickle.default.*
+
+case class Event
+(
+  event: EventType,
+  side: Option[Side] = None,
+) derives ReadWriter
 
 --- server/src/main/scala/model/types/EventType.scala ---
 
@@ -145,33 +459,6 @@ import upickle.default.*
 enum EventType derives ReadWriter:
   case Throw, ExitTable, Net // only relevant for serves
   case Racket, Board, Out
-
---- server/src/main/scala/model/types/RallyState.scala ---
-
-package model.types
-
-import upickle.default.*
-
-enum RallyState derives ReadWriter:
-  case Idle, ToServe, ToBounce1, ToBounce2, NetServe // Serve states
-  case ToStrike, ToBounce // Return states
-
---- server/src/main/scala/model/types/Points.scala ---
-
-package model.types
-
-import upickle.default.*
-
-case class Points(Red: Int, Black: Int) derives ReadWriter:
-  def inc(player: Player): Points = player match {
-    case Player.Red => copy(Red = Red + 1)
-    case Player.Black => copy(Black = Black + 1)
-  }
-  
-  def dec(player: Player): Points = player match {
-    case Player.Red => copy(Red = Math.max(Red - 1, 0))
-    case Player.Black => copy(Black = Math.max(Black - 1, 0))
-  }
 
 --- server/src/main/scala/model/types/Player.scala ---
 
@@ -189,6 +476,23 @@ enum Player derives ReadWriter:
   lazy val opponent: Player = this match
     case Player.Red => Player.Black
     case Player.Black => Player.Red
+--- server/src/main/scala/model/types/Points.scala ---
+
+package model.types
+
+import upickle.default.*
+
+case class Points(Red: Int, Black: Int) derives ReadWriter:
+  def inc(player: Player): Points = player match {
+    case Player.Red => copy(Red = Red + 1)
+    case Player.Black => copy(Black = Black + 1)
+  }
+  
+  def dec(player: Player): Points = player match {
+    case Player.Red => copy(Red = Math.max(Red - 1, 0))
+    case Player.Black => copy(Black = Math.max(Black - 1, 0))
+  }
+
 --- server/src/main/scala/model/types/Side.scala ---
 
 package model.types
@@ -197,49 +501,24 @@ import upickle.default.*
 
 enum Side derives ReadWriter:
   case Left, Right
---- server/src/main/scala/model/pingis/SetState.scala ---
+--- server/src/main/scala/model/types/RallyState.scala ---
 
-package model.pingis
+package model.types
 
-import model.api.in.{Event, Input}
-import model.types.{Player, Points, RallyState}
 import upickle.default.*
 
-case object SetState:
-  def apply(firstServer: Player): SetState =
-    SetState(
-      GameState(firstServer),
-      firstServer = firstServer,
-    )
+enum RallyState derives ReadWriter:
+  case Idle, ToServe, ToBounce1, ToBounce2, NetServe // Serve states
+  case ToStrike, ToBounce // Return states
 
-case class SetState
-(
-  game: GameState,
-  points: Points = Points(0, 0),
-  firstServer: Player,
-):
-  def process(event: Event): Option[SetState] = 
-    game
-      .process(event.event, event.side.map(Player(_, points)))
-      .map(handle)
-  
-  def process(input: Input): Option[SetState] = 
-    game
-      .process(input.action, Player(input.side, points))
-      .map(handle)
-  
-  private def handle(gameState: GameState): SetState = gameState match {
-    case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
-      newGame(points.inc(Player.Red))
-    case GameState(_, _, p, _) if p.Black >= 11 && p.Black >= p.Red + 2 =>
-      newGame(points.inc(Player.Black))
-    case g => copy(game = g)
-  }
+--- server/src/main/scala/model/types/InputAction.scala ---
 
-  private def newGame(points: Points): SetState =
-    val nextServer = if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent
-    copy(game = GameState(nextServer), points = points)
-  
+package model.types
+
+import upickle.default.*
+
+enum InputAction derives ReadWriter:
+  case Increase, Decrease, Reset
 
 --- server/src/main/scala/model/pingis/GameState.scala ---
 
@@ -338,252 +617,297 @@ case class MatchState
     case Reset => Some(MatchState(set = SetState(if (input.side == Left) Player.Red else Player.Black)))
     case _ => set.process(input).map(newSet => copy(set = newSet))
 
---- server/src/main/scala/model/api/out/InvalidInput.scala ---
+--- server/src/main/scala/model/pingis/SetState.scala ---
 
-package model.api.out
-
-import model.api.in.Input
-import model.api.out.StateSummary
-import upickle.default.*
-
-case class InvalidInput(input: Input, state: StateSummary)
-  extends Exception(s"Unhandled input: ${write(input)} with state ${write(state)}") 
-    derives ReadWriter
---- server/src/main/scala/model/api/out/ErrorResponse.scala ---
-
-package model.api.out
-
-import upickle.default.*
-
-case class ErrorResponse(error: String) derives ReadWriter
-
---- server/src/main/scala/model/api/out/InvalidEvent.scala ---
-
-package model.api.out
-
-import model.api.in.Event
-import model.api.out.StateSummary
-import upickle.default.*
-
-case class InvalidEvent(event: Event, state: StateSummary) 
-  extends Exception(s"Unhandled event: ${write(event)} with state ${write(state)}") 
-    derives ReadWriter
---- server/src/main/scala/model/api/out/StateSummary.scala ---
-
-package model.api.out
+package model.pingis
 
 import model.api.in.{Event, Input}
-import model.pingis.MatchState
 import model.types.{Player, Points, RallyState}
 import upickle.default.*
 
-case class StateSummary
-(
-  // Only with vision
-  latestEvent: Option[Event] = None,
-  rallyState: RallyState,
-  possession: Player,
-  // Needed for UI
-  latestInput: Option[Input] = None,
-  firstServer: Player,
-  gamePoints: Points,
-  setPoints: Points,
-  playerRed: String,
-  playerBlack: String,
-  bestOf: Int,
-) derives ReadWriter
-
-object StateSummary:
-
-  def apply(matchState: MatchState): StateSummary =
-    StateSummary(
-      rallyState = matchState.set.game.rallyState,
-      possession = matchState.set.game.possession,
-      firstServer = matchState.set.game.firstServer,
-      gamePoints = matchState.set.game.points,
-      setPoints = matchState.set.points,
-      playerRed = matchState.playerRed,
-      playerBlack = matchState.playerBlack,
-      bestOf = matchState.bestOf,
+case object SetState:
+  def apply(firstServer: Player): SetState =
+    SetState(
+      GameState(firstServer),
+      firstServer = firstServer,
     )
 
-  def apply(event: Event, matchState: MatchState): StateSummary =
-    StateSummary(matchState).copy(latestEvent = Some(event))
-
-  def apply(input: Input, matchState: MatchState): StateSummary =
-    StateSummary(matchState).copy(latestInput = Some(input))
-
---- server/src/main/scala/model/api/in/Event.scala ---
-
-package model.api.in
-
-import model.types.{EventType, Side}
-import upickle.default.*
-
-case class Event
+case class SetState
 (
-  event: EventType,
-  side: Option[Side] = None,
-) derives ReadWriter
-
---- server/src/main/scala/model/api/in/NewMatch.scala ---
-
-package model.api.in
-
-import model.types.Player
-import upickle.default.*
-
-case class NewMatch
-(
-  playerRed: String,
-  playerBlack: String,
-  bestOf: Int,
+  game: GameState,
+  points: Points = Points(0, 0),
   firstServer: Player,
-) derives ReadWriter
-
---- server/src/main/scala/model/api/in/Input.scala ---
-
-package model.api.in
-
-import model.types.{InputAction, Player, Side}
-import upickle.default.*
+):
+  def process(event: Event): Option[SetState] = 
+    game
+      .process(event.event, event.side.map(Player(_, points)))
+      .map(handle)
   
-case class Input
-(
-  action: InputAction,
-  side: Side,
-) derives ReadWriter
-
---- server/src/main/scala/Codecs.scala ---
-
-import cats.effect.Concurrent
-import upickle.default.*
-
-object Codecs:
-
-  import org.http4s.*
-
-  implicit def upickleEncoder[F[_], A: Writer]: EntityEncoder[F, A] =
-    EntityEncoder.stringEncoder[F].contramap[A](write[A](_))
-
-  implicit def upickleDecoder[F[_] : Concurrent, A: Reader]: EntityDecoder[F, A] =
-    EntityDecoder.text[F].map(read[A](_))
---- server/src/main/scala/Main.scala ---
-
-import cats.effect.{ExitCode, IO, IOApp, Ref}
-import com.comcast.ip4s.*
-import fs2.concurrent.Topic
-import model.api.out.StateSummary
-import model.pingis.MatchState
-import org.http4s.*
-import org.http4s.ember.server.EmberServerBuilder
-
-import scala.concurrent.duration.DurationInt
-
-object Main extends IOApp:
-  def server: IO[ExitCode] =
-    for
-      state <- Ref.of[IO, MatchState](MatchState())
-      updates <- Topic[IO, StateSummary]
-      _ <- EmberServerBuilder
-        .default[IO]
-        .withPort(port"8080")
-        .withHost(host"0.0.0.0")
-        .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
-        .build
-        .use(_ => IO.never)        
-        .handleErrorWith { error =>
-          IO.println(s"Server crashed with error: ${error.getMessage}") *>
-            IO.sleep(5.seconds) *>
-            server // Recursive call to restart
-        }
-    yield ExitCode.Success
-
-  def run(args: List[String]): IO[ExitCode] = server
---- server/src/main/scala/Routes.scala ---
-
-import cats.effect.IO
-import model.api.in.{Event, Input, NewMatch}
-import model.api.out.InvalidEvent
-import org.http4s.dsl.Http4sDsl
-import org.http4s.headers.`Content-Type`
-import org.http4s.server.middleware.{CORS, ErrorHandling}
-import org.http4s.{EntityEncoder, Header, HttpRoutes, MediaType, Response}
-import org.typelevel.ci.CIStringSyntax
-import upickle.default.*
-
-class Routes(service: StateService) extends Http4sDsl[IO]:
-
-  import Codecs.*
-
-  private val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case req@POST -> Root / "new" =>
-      for
-        input <- req.as[NewMatch]
-        _ <- IO.println(s"Starting new match: $input")
-        state <- service.newMatch(input)
-        resp <- Ok(state)
-      yield resp
-
-    case req@POST -> Root / "event" =>
-      for
-        event <- req.as[Event]
-        result <- service.process(event)
-          .map(Right.apply)
-          .recover {
-            case i: InvalidEvent =>
-              println(i)
-              Left(i)
-          }
-        resp <- result match
-          case Left(value) => Accepted(value)
-          case Right(value) => Ok(value)
-      yield resp
-
-    case req@POST -> Root / "input" =>
-      for
-        event <- req.as[Input]
-        result <- service.process(event)
-          .map(Right.apply)
-          .recover {
-            case i: InvalidEvent =>
-              println(i)
-              Left(i)
-          }
-        resp <- result match
-          case Left(value) => Accepted(value)
-          case Right(value) => Ok(value)
-      yield resp
-
-    case GET -> Root / "state" =>
-      val stream =
-        (fs2.Stream.eval(service.getState) ++ service.subscribe)
-          .evalMap(history => IO.println(s"streaming: $history \n${write(history)}").map(_ => history))
-          .map(history => s"data: ${write(history)}\n\n")
-          .through(fs2.text.utf8.encode)
-
-      Ok(stream).map(_.withHeaders(
-        `Content-Type`(MediaType.`text/event-stream`),
-        Header.Raw(ci"Cache-Control", "no-cache"),
-        Header.Raw(ci"Connection", "keep-alive")
-      ))
+  def process(input: Input): Option[SetState] = 
+    game
+      .process(input.action, Player(input.side, points))
+      .map(handle)
+  
+  private def handle(gameState: GameState): SetState = gameState match {
+    case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
+      newGame(points.inc(Player.Red))
+    case GameState(_, _, p, _) if p.Black >= 11 && p.Black >= p.Red + 2 =>
+      newGame(points.inc(Player.Black))
+    case g => copy(game = g)
   }
 
-  val corsRoutes: HttpRoutes[IO] = CORS.policy
-    .withAllowOriginAll(ErrorHandling.httpRoutes(routes))
+  private def newGame(points: Points): SetState =
+    val nextServer = if ((points.Red + points.Black) % 2 == 0) firstServer else firstServer.opponent
+    copy(game = GameState(nextServer), points = points)
+  
 
 === Frontend ===
 
---- frontend/src/app/setup/page.tsx ---
+--- frontend/src/app/components/SetupForm.tsx ---
 
-import SetupForm from "@/app/components/SetupForm";
+'use client';
 
-export default function Setup() {
+import {redirect} from 'next/navigation';
+import {Player} from '@/lib/types';
+
+async function submitForm(formData: FormData) {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
+        method: 'POST',
+        body: JSON.stringify({
+            playerRed: formData.get('playerRed'),
+            playerBlack: formData.get('playerBlack'),
+            bestOf: Number(formData.get('bestOf')),
+            firstServer: formData.get('firstServer')
+        })
+    });
+    redirect('/score');
+}
+
+export default function SetupForm() {
     return (
-        <div className="h-screen flex items-center justify-center">
-            <SetupForm />
+        <form action={submitForm}>
+            <div className="flex w-screen h-screen">
+                <div className="bg-red-600 w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerRed"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Red"
+                    />
+                </div>
+
+                <div
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-white">
+                    VS
+                </div>
+
+                <div className="bg-black w-1/2 h-full flex flex-col items-center justify-center text-white">
+                    <input
+                        name="playerBlack"
+                        type="text"
+                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
+                        placeholder="Black"
+                    />
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-[25vh] gap-4">
+                    <select
+                        name="bestOf"
+                        className="p-2 border rounded text-black"
+                    >
+                        <option value={1}>Best of 1</option>
+                        <option value={3}>Best of 3</option>
+                        <option value={5}>Best of 5</option>
+                    </select>
+                    <select
+                        name="firstServer"
+                        className="p-2 border rounded text-black"
+                    >
+                        <option value={Player.Red}>Red serves first</option>
+                        <option value={Player.Black}>Black serves first</option>
+                    </select>
+                    <button type="submit" className="p-2 bg-white rounded shadow hover:bg-gray-100 text-black">
+                        Start Game
+                    </button>
+                </div>
+            </div>
+        </form>
+    );
+}
+--- frontend/src/app/components/State.tsx ---
+
+'use client';
+
+import {useEffect, useState} from 'react';
+import {Player, StateSummary} from '@/lib/types';
+
+export default function State() {
+    const [history, setHistory] = useState<StateSummary[]>([]);
+
+    useEffect(() => {
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("oskar updating history", data);
+            setHistory(old => [data, ...old].slice(0, 30));
+        };
+
+        return () => eventSource.close();
+    }, []);
+
+    return (
+        <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Game State</h1>
+            {history.length > 0 && <VisualState state={history[0]}/>}
+            <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="font-bold mb-2">Latest Events</h2>
+                <div className="space-y-2">
+                    {history.map((h, i) => (
+                        <div key={i} className="flex items-center space-x-2 text-sm">
+                            <span>{h.latestEvent?.event} {h.latestEvent?.side}</span>
+                            <span>{h.rallyState} {h.possession} {h.gamePoints.Red}:{h.gamePoints.Black}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
-    )
+    );
+}
+
+function VisualState({state}: { state: StateSummary }) {
+
+    const isPlayerActive = (player: Player) => state.possession === player;
+
+    return (
+        <div className="p-8 space-y-8">
+            {/* Score Display */}
+            <div className="flex justify-center items-center gap-16">
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Red) ? 'text-red-600' : ''}`}>
+                    {state.gamePoints.Red}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Red})</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-400">vs</div>
+                <div className={`text-6xl font-bold ${isPlayerActive(Player.Black) ? 'text-black' : ''}`}>
+                    {state.gamePoints.Black}
+                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Black})</span>
+                </div>
+            </div>
+
+            {/* Rally State */}
+            <div className="text-center text-lg">
+                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.side || 'none'}
+            </div>
+        </div>
+    );
+}
+--- frontend/src/app/components/Simulator.tsx ---
+
+'use client';
+
+import {EventType, StateSummary, Side, ErrorResponse} from "@/lib/types";
+import {useState} from "react";
+
+const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
+
+export default function Simulator() {
+    const [state, setState] = useState<StateSummary | ErrorResponse>();
+
+    const sendEvent = async (event: EventType, side?: Side) => {
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
+                method: 'POST',
+                body: JSON.stringify({ event, side })
+            });
+            setState(await response.json());
+        } catch (e) {
+            console.error("Event error:", e);
+        }
+    };
+
+    const isLatestEvent = (event: EventType, side?: Side) => {
+        if (!state || 'error' in state) return false;
+        return state.latestEvent?.event === event && (!side || state.latestEvent?.side === side);
+    };
+
+    return (
+        <div className="h-screen flex flex-col p-8">
+            <h1 className="text-2xl font-bold mb-4">Event Simulator</h1>
+            <button
+                onClick={() => sendEvent(EventType.Out)}
+                className={`mb-8 h-32 bg-gray-100 hover:bg-gray-200 rounded-lg ${
+                    isLatestEvent(EventType.Out) ? highlight : ''
+                }`}
+            >
+                Out
+            </button>
+
+            {/* Main content - added z-10 to stay above out area */}
+            <div className="flex items-center justify-center gap-8">
+                <div className="flex items-center gap-4">
+                    <span className="text-2xl font-bold">Left</span>
+                    <div className="flex flex-col gap-2">
+                        <button
+                            onClick={() => sendEvent(EventType.Throw, Side.Left)}
+                            className={`px-4 py-2 rounded hover:opacity-90  bg-red-600 text-white ${isLatestEvent(EventType.Throw, Side.Left) ? highlight : ''}`}
+                        >
+                            Throw
+                        </button>
+                        <button
+                            onClick={() => sendEvent(EventType.Racket, Side.Left)}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-red-600 text-white ${isLatestEvent(EventType.Racket, Side.Left) ? highlight : ''}`}
+                        >
+                            Racket
+                        </button>
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div className="flex border-2 border-gray-400 rounded">
+                    <button
+                        onClick={() => sendEvent(EventType.Board, Side.Left)}
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Side.Left) ? highlight : ''
+                        }`}
+                    >
+                        Left Side
+                    </button>
+                    <button
+                        onClick={() => sendEvent(EventType.Net)}
+                        className={`w-4 h-32 bg-gray-300 hover:bg-gray-400 ${
+                            isLatestEvent(EventType.Net) ? highlight : ''
+                        }`}
+                    />
+                    <button
+                        onClick={() => sendEvent(EventType.Board, Side.Right)}
+                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 border-inset ${
+                            isLatestEvent(EventType.Board, Side.Right) ? highlight : ''
+                        }`}
+                    >
+                        Right Side
+                    </button>
+                </div>
+
+                {/* Right side */}
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-2">
+                        <button
+                            onClick={() => sendEvent(EventType.Throw, Side.Right)}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-black text-white ${isLatestEvent(EventType.Throw, Side.Right) ? highlight : ''}`}
+                        >
+                            Throw
+                        </button>
+                        <button
+                            onClick={() => sendEvent(EventType.Racket, Side.Right)}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-black text-white ${isLatestEvent(EventType.Racket, Side.Right) ? highlight : ''}`}
+                        >
+                            Racket
+                        </button>
+                    </div>
+                    <span className="text-2xl font-bold">Right</span>
+                </div>
+            </div>
+        </div>
+    );
 }
 --- frontend/src/app/components/Scoreboard.tsx ---
 
@@ -609,7 +933,6 @@ function PlayerScore
      isTwoServesEach,
      side,
      bgColor,
-     player
  }: {
     name: string
     setScore: number
@@ -619,7 +942,6 @@ function PlayerScore
     isTwoServesEach: boolean
     side: Side
     bgColor: string
-    player: Player
 }) {
     const sendInput = async (action: InputAction) => {
         try {
@@ -741,258 +1063,29 @@ function Scoreboard() {
 };
 
 export default Scoreboard;
---- frontend/src/app/components/SetupForm.tsx ---
+--- frontend/src/app/page.tsx ---
 
-'use client';
+import State from "@/app/components/State";
+import Simulator from "@/app/components/Simulator";
 
-import {useState} from 'react';
-import {redirect, useRouter} from 'next/navigation';
-import {NewMatch, Player} from '@/lib/types';
-
-async function submitForm(formData: FormData) {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
-        method: 'POST',
-        body: JSON.stringify({
-            playerRed: formData.get('playerRed'),
-            playerBlack: formData.get('playerBlack'),
-            bestOf: Number(formData.get('bestOf')),
-            firstServer: formData.get('firstServer')
-        })
-    });
-    redirect('/score');
-}
-
-export default function SetupForm() {
+export default function Home() {
     return (
-        <form action={submitForm}>
-            <div className="flex w-screen h-screen">
-                <div className="bg-red-600 w-1/2 h-full flex flex-col items-center justify-center text-white">
-                    <input
-                        name="playerRed"
-                        type="text"
-                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
-                        placeholder="Red"
-                    />
-                </div>
-
-                <div
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-white">
-                    VS
-                </div>
-
-                <div className="bg-black w-1/2 h-full flex flex-col items-center justify-center text-white">
-                    <input
-                        name="playerBlack"
-                        type="text"
-                        className="w-64 p-2 bg-transparent text-white text-4xl border-b-2 border-white placeholder-white/50 focus:outline-none text-center"
-                        placeholder="Black"
-                    />
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-[25vh] gap-4">
-                    <select
-                        name="bestOf"
-                        className="p-2 border rounded text-black"
-                    >
-                        <option value={1}>Best of 1</option>
-                        <option value={3}>Best of 3</option>
-                        <option value={5}>Best of 5</option>
-                    </select>
-                    <select
-                        name="firstServer"
-                        className="p-2 border rounded text-black"
-                    >
-                        <option value={Player.Red}>Red serves first</option>
-                        <option value={Player.Black}>Black serves first</option>
-                    </select>
-                    <button type="submit" className="p-2 bg-white rounded shadow hover:bg-gray-100 text-black">
-                        Start Game
-                    </button>
-                </div>
-            </div>
-        </form>
-    );
-}
---- frontend/src/app/components/State.tsx ---
-
-'use client';
-
-import {useEffect, useState} from 'react';
-import {Player, StateSummary} from '@/lib/types';
-
-export default function State() {
-    const [history, setHistory] = useState<StateSummary[]>([]);
-
-    useEffect(() => {
-        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/state`);
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log("oskar updating history", data);
-            setHistory(old => [data, ...old].slice(0, 30));
-        };
-
-        return () => eventSource.close();
-    }, []);
-
-    return (
-        <div className="p-8">
-            <h1 className="text-2xl font-bold mb-4">Game State</h1>
-            {history.length > 0 && <VisualState state={history[0]}/>}
-            <div className="bg-white rounded-lg shadow p-4">
-                <h2 className="font-bold mb-2">Latest Events</h2>
-                <div className="space-y-2">
-                    {history.map((h, i) => (
-                        <div key={i} className="flex items-center space-x-2 text-sm">
-                            <span>{h.latestEvent?.event} {h.latestEvent?.player}</span>
-                            <span>{h.rallyState} {h.possession} {h.gamePoints.Red}:{h.gamePoints.Black}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
+        <div>
+            <State />
+            <Simulator />
         </div>
-    );
+    )
 }
+--- frontend/src/app/setup/page.tsx ---
 
-function VisualState({state}: { state: StateSummary }) {
+import SetupForm from "@/app/components/SetupForm";
 
-    const isPlayerActive = (player: Player) => state.possession === player;
-
+export default function Setup() {
     return (
-        <div className="p-8 space-y-8">
-            {/* Score Display */}
-            <div className="flex justify-center items-center gap-16">
-                <div className={`text-6xl font-bold ${isPlayerActive(Player.Red) ? 'text-red-600' : ''}`}>
-                    {state.gamePoints.Red}
-                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Red})</span>
-                </div>
-                <div className="text-2xl font-bold text-gray-400">vs</div>
-                <div className={`text-6xl font-bold ${isPlayerActive(Player.Black) ? 'text-black' : ''}`}>
-                    {state.gamePoints.Black}
-                    <span className="text-2xl text-gray-400 ml-2">({state.setPoints.Black})</span>
-                </div>
-            </div>
-
-            {/* Rally State */}
-            <div className="text-center text-lg">
-                {state.rallyState} - {state.latestEvent?.event} by {state.latestEvent?.player || 'none'}
-            </div>
+        <div className="h-screen flex items-center justify-center">
+            <SetupForm />
         </div>
-    );
-}
---- frontend/src/app/components/Simulator.tsx ---
-
-'use client';
-
-import {EventType, StateSummary, Side, ErrorResponse} from "@/lib/types";
-import {useState} from "react";
-
-const highlight = 'outline-offset-[-4px] outline outline-4 outline-yellow-400';
-
-export default function Simulator() {
-    const [state, setState] = useState<StateSummary | ErrorResponse>();
-
-    const sendEvent = async (event: EventType, side?: Side) => {
-        try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/event`, {
-                method: 'POST',
-                body: JSON.stringify({ event, side })
-            });
-            setState(await response.json());
-        } catch (e) {
-            console.error("Event error:", e);
-        }
-    };
-
-    const isLatestEvent = (event: EventType, side?: Side) => {
-        if (!state || 'error' in state) return false;
-        return state.latestEvent?.event === event && (!side || state.latestEvent?.side === side);
-    };
-
-    const Button = ({ onClick, className, children }: any) => (
-        <button onClick={onClick} className={`px-4 py-2 rounded hover:opacity-90 ${className}`}>
-            {children}
-        </button>
-    );
-
-    return (
-        <div className="h-screen flex flex-col p-8">
-            <h1 className="text-2xl font-bold mb-4">Event Simulator</h1>
-            <button
-                onClick={() => sendEvent(EventType.Out)}
-                className={`mb-8 h-32 bg-gray-100 hover:bg-gray-200 rounded-lg ${
-                    isLatestEvent(EventType.Out) ? highlight : ''
-                }`}
-            >
-                Out
-            </button>
-
-            {/* Main content - added z-10 to stay above out area */}
-            <div className="flex items-center justify-center gap-8">
-                <div className="flex items-center gap-4">
-                    <span className="text-2xl font-bold">Left</span>
-                    <div className="flex flex-col gap-2">
-                        <Button
-                            onClick={() => sendEvent(EventType.Throw, Side.Left)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Side.Left) ? highlight : ''}`}
-                        >
-                            Throw
-                        </Button>
-                        <Button
-                            onClick={() => sendEvent(EventType.Racket, Side.Left)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Side.Left) ? highlight : ''}`}
-                        >
-                            Racket
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Table */}
-                <div className="flex border-2 border-gray-400 rounded">
-                    <button
-                        onClick={() => sendEvent(EventType.Board, Side.Left)}
-                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-r-4 border-gray-400 border-inset ${
-                            isLatestEvent(EventType.Board, Side.Left) ? highlight : ''
-                        }`}
-                    >
-                        Left Side
-                    </button>
-                    <button
-                        onClick={() => sendEvent(EventType.Net)}
-                        className={`w-4 h-32 bg-gray-300 hover:bg-gray-400 ${
-                            isLatestEvent(EventType.Net) ? highlight : ''
-                        }`}
-                    />
-                    <button
-                        onClick={() => sendEvent(EventType.Board, Side.Right)}
-                        className={`w-36 h-32 bg-green-100 hover:bg-green-200 border-l-4 border-gray-400 border-inset ${
-                            isLatestEvent(EventType.Board, Side.Right) ? highlight : ''
-                        }`}
-                    >
-                        Right Side
-                    </button>
-                </div>
-
-                {/* Right side */}
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col gap-2">
-                        <Button
-                            onClick={() => sendEvent(EventType.Throw, Side.Right)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Side.Right) ? highlight : ''}`}
-                        >
-                            Throw
-                        </Button>
-                        <Button
-                            onClick={() => sendEvent(EventType.Racket, Side.Right)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Side.Right) ? highlight : ''}`}
-                        >
-                            Racket
-                        </Button>
-                    </div>
-                    <span className="text-2xl font-bold">Right</span>
-                </div>
-            </div>
-        </div>
-    );
+    )
 }
 --- frontend/src/app/score/page.tsx ---
 
@@ -1042,19 +1135,6 @@ export default function RootLayout({
   );
 }
 
---- frontend/src/app/page.tsx ---
-
-import State from "@/app/components/State";
-import Simulator from "@/app/components/Simulator";
-
-export default function Home() {
-    return (
-        <div>
-            <State />
-            <Simulator />
-        </div>
-    )
-}
 --- frontend/src/lib/utils.ts ---
 
 import {Player} from "@/lib/types";

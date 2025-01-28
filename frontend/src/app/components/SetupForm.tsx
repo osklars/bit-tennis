@@ -1,8 +1,7 @@
 'use client';
 
-import {useState} from 'react';
-import {redirect, useRouter} from 'next/navigation';
-import {NewMatch, Player} from '@/lib/types';
+import {redirect} from 'next/navigation';
+import {Player} from '@/lib/types';
 
 async function submitForm(formData: FormData) {
     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/new`, {
