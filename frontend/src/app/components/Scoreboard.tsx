@@ -20,7 +20,6 @@ function PlayerScore
      isTwoServesEach,
      side,
      bgColor,
-     player
  }: {
     name: string
     setScore: number
@@ -30,7 +29,6 @@ function PlayerScore
     isTwoServesEach: boolean
     side: Side
     bgColor: string
-    player: Player
 }) {
     const sendInput = async (action: InputAction) => {
         try {

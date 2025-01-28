@@ -25,12 +25,6 @@ export default function Simulator() {
         return state.latestEvent?.event === event && (!side || state.latestEvent?.side === side);
     };
 
-    const Button = ({ onClick, className, children }: any) => (
-        <button onClick={onClick} className={`px-4 py-2 rounded hover:opacity-90 ${className}`}>
-            {children}
-        </button>
-    );
-
     return (
         <div className="h-screen flex flex-col p-8">
             <h1 className="text-2xl font-bold mb-4">Event Simulator</h1>
@@ -48,18 +42,18 @@ export default function Simulator() {
                 <div className="flex items-center gap-4">
                     <span className="text-2xl font-bold">Left</span>
                     <div className="flex flex-col gap-2">
-                        <Button
+                        <button
                             onClick={() => sendEvent(EventType.Throw, Side.Left)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Throw, Side.Left) ? highlight : ''}`}
+                            className={`px-4 py-2 rounded hover:opacity-90  bg-red-600 text-white ${isLatestEvent(EventType.Throw, Side.Left) ? highlight : ''}`}
                         >
                             Throw
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             onClick={() => sendEvent(EventType.Racket, Side.Left)}
-                            className={`bg-red-600 text-white ${isLatestEvent(EventType.Racket, Side.Left) ? highlight : ''}`}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-red-600 text-white ${isLatestEvent(EventType.Racket, Side.Left) ? highlight : ''}`}
                         >
                             Racket
-                        </Button>
+                        </button>
                     </div>
                 </div>
 
@@ -92,18 +86,18 @@ export default function Simulator() {
                 {/* Right side */}
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
-                        <Button
+                        <button
                             onClick={() => sendEvent(EventType.Throw, Side.Right)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Throw, Side.Right) ? highlight : ''}`}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-black text-white ${isLatestEvent(EventType.Throw, Side.Right) ? highlight : ''}`}
                         >
                             Throw
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             onClick={() => sendEvent(EventType.Racket, Side.Right)}
-                            className={`bg-black text-white ${isLatestEvent(EventType.Racket, Side.Right) ? highlight : ''}`}
+                            className={`px-4 py-2 rounded hover:opacity-90 bg-black text-white ${isLatestEvent(EventType.Racket, Side.Right) ? highlight : ''}`}
                         >
                             Racket
-                        </Button>
+                        </button>
                     </div>
                     <span className="text-2xl font-bold">Right</span>
                 </div>

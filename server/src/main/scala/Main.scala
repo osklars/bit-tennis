@@ -15,7 +15,7 @@ object Main extends IOApp:
       updates <- Topic[IO, StateSummary]
       _ <- EmberServerBuilder
         .default[IO]
-        .withPort(port"8080")
+        .withPort(port"8081")
         .withHost(host"0.0.0.0")
         .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
         .build
