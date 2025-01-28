@@ -2,6 +2,7 @@
 ./
 |-- README.md
 |-- ai-context.txt
+|-- docker-compose.yml
 |-- dump-context.sh*
 |-- frontend/
 |   |-- README.md
@@ -217,9 +218,15 @@ case class SetState
   points: Points = Points(0, 0),
   firstServer: Player,
 ):
-  def process(event: Event): Option[SetState] = game.process(event).map(handle)
+  def process(event: Event): Option[SetState] = 
+    game
+      .process(event.event, event.side.map(Player(_, points)))
+      .map(handle)
   
-  def process(input: Input): Option[SetState] = game.process(input.action, Player(input.side, points)).map(handle)
+  def process(input: Input): Option[SetState] = 
+    game
+      .process(input.action, Player(input.side, points))
+      .map(handle)
   
   private def handle(gameState: GameState): SetState = gameState match {
     case GameState(_, _, p, _) if p.Red >= 11 && p.Red >= p.Black + 2 =>
@@ -259,34 +266,34 @@ case class GameState
   points: Points = Points(0, 0),
   firstServer: Player = Player.Red,
 ):
-  def process(event: Event): Option[GameState] =
-    Option(rallyState, event).collect {
+  def process(event: EventType, player: Option[Player]): Option[GameState] =
+    Option(rallyState, event, player).collect {
       // serving
-      case (Idle, Event(Throw, Some(this.possession))) => copy(ToServe)
+      case (Idle, Throw, Some(this.possession)) => copy(ToServe)
 
-      case (ToServe, Event(Racket, Some(this.possession))) => copy(ToBounce1)
-      case (ToServe, _) => copy(Idle) // ignore events until rally starts with a proper serve
+      case (ToServe, Racket, Some(this.possession)) => copy(ToBounce1)
+      case (ToServe, _, _) => copy(Idle) // ignore events until rally starts with a proper serve
 
-      case (ToBounce1, Event(Board, Some(this.possession))) => copy(ToBounce2)
-      case (ToBounce1, _) => handle(points.inc(possession.opponent))
+      case (ToBounce1, Board, Some(this.possession)) => copy(ToBounce2)
+      case (ToBounce1, _, _) => handle(points.inc(possession.opponent))
 
-      case (ToBounce2, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce2, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
-      case (ToBounce2, Event(Net, _)) => copy(NetServe)
-      case (ToBounce2, _) => handle(points.inc(possession.opponent))
+      case (ToBounce2, Board, Some(possession.opponent)) => copy(ToStrike, possession.opponent)
+      case (ToBounce2, Racket, Some(possession.opponent)) => handle(points.inc(possession))
+      case (ToBounce2, Net, _) => copy(NetServe)
+      case (ToBounce2, _, _) => handle(points.inc(possession.opponent))
 
-      case (NetServe, Event(Board, Some(possession.opponent))) => copy(Idle)
-      case (NetServe, Event(Net, _)) => this
-      case (NetServe, _) => handle(points.inc(possession.opponent))
+      case (NetServe, Board, Some(possession.opponent)) => copy(Idle)
+      case (NetServe, Net, _) => this
+      case (NetServe, _, _) => handle(points.inc(possession.opponent))
 
       // returning
-      case (ToStrike, Event(Racket, Some(this.possession))) => copy(ToBounce, possession)
-      case (ToStrike, _) => handle(points.inc(possession.opponent))
+      case (ToStrike, Racket, Some(this.possession)) => copy(ToBounce, possession)
+      case (ToStrike, _, _) => handle(points.inc(possession.opponent))
 
-      case (ToBounce, Event(Board, Some(possession.opponent))) => copy(ToStrike, possession.opponent)
-      case (ToBounce, Event(Racket, Some(possession.opponent))) => handle(points.inc(possession))
-      case (ToBounce, Event(Net, _)) => this
-      case (ToBounce, _) => handle(points.inc(possession.opponent))
+      case (ToBounce, Board, Some(possession.opponent)) => copy(ToStrike, possession.opponent)
+      case (ToBounce, Racket, Some(possession.opponent)) => handle(points.inc(possession))
+      case (ToBounce, Net, _) => this
+      case (ToBounce, _, _) => handle(points.inc(possession.opponent))
     }
   
   private def handle(points: Points): GameState =
@@ -410,13 +417,13 @@ object StateSummary:
 
 package model.api.in
 
-import model.types.{EventType, Player}
+import model.types.{EventType, Side}
 import upickle.default.*
 
 case class Event
 (
   event: EventType,
-  player: Option[Player],
+  side: Option[Side] = None,
 ) derives ReadWriter
 
 --- server/src/main/scala/model/api/in/NewMatch.scala ---
@@ -471,6 +478,8 @@ import model.pingis.MatchState
 import org.http4s.*
 import org.http4s.ember.server.EmberServerBuilder
 
+import scala.concurrent.duration.DurationInt
+
 object Main extends IOApp:
   def server: IO[ExitCode] =
     for
@@ -482,7 +491,12 @@ object Main extends IOApp:
         .withHost(host"0.0.0.0")
         .withHttpApp(Routes(StateService(state, updates)).corsRoutes.orNotFound)
         .build
-        .use(_ => IO.never)
+        .use(_ => IO.never)        
+        .handleErrorWith { error =>
+          IO.println(s"Server crashed with error: ${error.getMessage}") *>
+            IO.sleep(5.seconds) *>
+            server // Recursive call to restart
+        }
     yield ExitCode.Success
 
   def run(args: List[String]): IO[ExitCode] = server
