@@ -2,7 +2,7 @@ package model.pingis
 
 import model.api.in.{Event, Input, NewMatch}
 import model.types.InputAction.Reset
-import model.types.{Player, Points}
+import model.types.{Player, Side}
 import upickle.default.*
 
 object MatchState:
@@ -18,7 +18,8 @@ case class MatchState
 ):
   def process(event: Event): Option[MatchState] =
     set.process(event).map(newSet => copy(set = newSet))
-  
+
   def process(input: Input): Option[MatchState] = input.action match
-    case Reset => Some(MatchState(set = SetState(if (input.side == Left) Player.Red else Player.Black)))
+    case Reset =>
+      Some(MatchState(set = SetState(if (input.side == Side.Left) Player.Red else Player.Black)))
     case _ => set.process(input).map(newSet => copy(set = newSet))

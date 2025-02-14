@@ -10,19 +10,17 @@ Content-Type: application/json
 
 {
   "event": "Racket",
-  "player": "Red"
+  "side": "Left"
 }
 
-### Post New Match
-POST http://localhost:8080/new
+### Post Input
+POST http://localhost:8081/input
 Origin: http://localhost:3000
 Access-Control-Request-Method: POST
 Access-Control-Request-Headers: content-type
 Content-Type: application/json
 
 {
-  "playerA": "Oskar",
-  "playerB": "Daniel",
-  "bestOf": 3,
-  "firstServer": "Red"
+  "action": "Reset",
+  "side": "Left"
 }
