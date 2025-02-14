@@ -24,3 +24,11 @@ Content-Type: application/json
   "action": "Reset",
   "side": "Left"
 }
+
+### Post to coolify
+POST http://195.67.251.27:8000/webhooks/source/github/events/manual
+Content-Type: application/json
+
+{
+  "Hello": "world"
+}
