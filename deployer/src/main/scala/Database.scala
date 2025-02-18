@@ -15,17 +15,17 @@ class Database(session: Session[IO]):
         Deployment(rid, repo, path, hash)
       }
 
-  private val updateHashCommand =
-    sql"""
-      UPDATE deployments
-      SET last_hash = $varchar, last_deploy = NOW()
-      WHERE resource_id = $varchar
-    """.command
-
   private val updateLastCheckCommand =
     sql"""
       UPDATE deployments
       SET last_check = NOW()
+      WHERE resource_id = $varchar
+    """.command
+
+  private val updateHashCommand =
+    sql"""
+      UPDATE deployments
+      SET last_hash = $varchar, last_deployment = NOW()
       WHERE resource_id = $varchar
     """.command
 
