@@ -14,7 +14,7 @@ object Main extends IOApp.Simple:
 
     val resources = for
       db <- Database.make(dbConfig)
-      github <- GithubClient.make(sys.env("GITHUB_TOKEN"))
+      github <- GithubClient.make
       coolify <- CoolifyClient.make(
         sys.env("COOLIFY_URL"),
         sys.env("COOLIFY_TOKEN")

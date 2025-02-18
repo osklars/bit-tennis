@@ -7,7 +7,7 @@ import org.typelevel.ci.*
 import upickle.default.*
 import Codecs.upickleDecoder
 
-class GithubClient(token: String, client: org.http4s.client.Client[IO]):
+class GithubClient(client: org.http4s.client.Client[IO]):
   def getTreeHash(repo: String, path: String, folder: String): IO[Option[String]] =
     val request = Request[IO](
       method = Method.GET,
@@ -23,5 +23,5 @@ class GithubClient(token: String, client: org.http4s.client.Client[IO]):
     }
 
 object GithubClient:
-  def make(token: String): Resource[IO, GithubClient] =
-    EmberClientBuilder.default[IO].build.map(new GithubClient(token, _))
+  def make: Resource[IO, GithubClient] =
+    EmberClientBuilder.default[IO].build.map(new GithubClient(_))
