@@ -6,7 +6,7 @@ Accept: application/vnd.github.v3+json
 
 
 ### Get specific folder tree
-GET https://api.github.com/repos/osklars/bit-tennis/contents/server?ref=main
+GET https://api.github.com/repos/osklars/bit-tennis/contents?ref=main
 Accept: application/vnd.github.v3+json
 
 ### Get specific file
