@@ -24,6 +24,6 @@ object Main extends IOApp.Simple:
     for {
 //      _ <- Migrations.run(sys.env("DB_URL"), sys.env("DB_USER"), sys.env("DB_PASSWORD"))
       _ <- resources.use { poller =>
-        poller.pollStream(30.seconds).compile.drain
+        poller.pollStream(3.minutes).compile.drain
       }
     } yield ()
