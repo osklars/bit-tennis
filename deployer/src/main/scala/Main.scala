@@ -1,4 +1,5 @@
 import cats.effect.{IO, IOApp}
+import model.DbConfig
 
 import scala.concurrent.duration.DurationInt
 
