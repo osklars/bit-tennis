@@ -17,7 +17,7 @@ class PollerService(
     for
       _ <- IO.println("Running poll")
       deployments <- db.getDeployments
-      _ <- deployments.traverse(d => run(d).attempt.recoverWith(e => IO.println(s"Failed $d with ${e.getMessage}")))
+      _ <- deployments.traverse(d => run(d).recoverWith(e => IO.println(s"Failed $d with ${e.getMessage}")))
     yield ()
 
   def run(deployment: Deployment): IO[Unit] =
@@ -36,8 +36,5 @@ class PollerService(
 
   def pollStream(interval: FiniteDuration): Stream[IO, Unit] =
     Stream
-      .repeatEval(poll.attempt.flatMap {
-        case Left(e) => IO.println(s"Failed poll with ${e.getMessage}")
-        case _ => IO.unit
-      })
+      .repeatEval(poll.recoverWith(e => IO.println(s"Failed poll with ${e.getMessage}")))
       .metered(interval)
