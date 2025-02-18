@@ -1,16 +1,19 @@
-import cats.effect.{ExitCode, IO, IOApp, Ref}
-import com.comcast.ip4s.*
-import fs2.concurrent.Topic
-import org.http4s.*
-import org.http4s.ember.client.EmberClientBuilder
-import org.http4s.ember.server.EmberServerBuilder
+import cats.effect.{IO, IOApp}
 
 import scala.concurrent.duration.DurationInt
 
 object Main extends IOApp.Simple:
   def run: IO[Unit] =
+    val dbConfig = DbConfig(
+      host = sys.env("DB_HOST"),
+      port = sys.env("DB_PORT").toInt,
+      user = sys.env("DB_USER"),
+      password = sys.env("DB_PASSWORD"),
+      database = sys.env("DB_NAME")
+    )
+
     val resources = for
-      db <- Database.make("jdbc:postgresql://localhost:5432/deployments")
+      db <- Database.make(dbConfig)
       github <- GithubClient.make(sys.env("GITHUB_TOKEN"))
       coolify <- CoolifyClient.make(
         sys.env("COOLIFY_URL"),
@@ -18,6 +21,9 @@ object Main extends IOApp.Simple:
       )
     yield new PollerService(db, github, coolify)
 
-    resources.use { poller =>
-      poller.pollStream(30.seconds).compile.drain
-    }
+    for {
+//      _ <- Migrations.run(sys.env("DB_URL"), sys.env("DB_USER"), sys.env("DB_PASSWORD"))
+      _ <- resources.use { poller =>
+        poller.pollStream(30.seconds).compile.drain
+      }
+    } yield ()

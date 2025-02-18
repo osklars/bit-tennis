@@ -3,10 +3,13 @@ import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.*
 import org.http4s.headers.*
 import cats.effect.{IO, Resource}
+import model.Content
 import org.typelevel.ci.*
+import upickle.default.*
+import Codecs.upickleDecoder
 
 class GithubClient(token: String, client: org.http4s.client.Client[IO]):
-  def getTreeHash(repo: String, path: String): IO[String] =
+  def getTreeHash(repo: String, path: String, folder: String): IO[Option[String]] =
     val request = Request[IO](
       method = Method.GET,
       uri = Uri.unsafeFromString(s"https://api.github.com/repos/$repo/contents/$path"),
@@ -16,9 +19,9 @@ class GithubClient(token: String, client: org.http4s.client.Client[IO]):
       )
     )
 
-    client.expect[String](request).map { response =>
-      // Parse response with upickle and extract sha
-      ujson.read(response).obj("sha").str
+    client.expect[List[Content]](request).map { response =>
+      response.find(_.name == folder)
+        .map(_.sha)
     }
 
 object GithubClient:

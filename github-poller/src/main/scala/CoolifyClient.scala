@@ -8,7 +8,7 @@ class CoolifyClient(baseUrl: String, token: String, client: org.http4s.client.Cl
   def triggerDeploy(resourceId: String): IO[Unit] =
     val request = Request[IO](
       method = Method.POST,
-      uri = Uri.unsafeFromString("$baseUrl/api/v1/resources/$resourceId/deploy"),
+      uri = Uri.unsafeFromString(s"$baseUrl/api/v1/deploy?force=true&uuid=$resourceId"),
       headers = Headers(Authorization(Credentials.Token(AuthScheme.Bearer, token)))
     )
     client.expect[String](request).void

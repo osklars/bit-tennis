@@ -15,5 +15,6 @@ lazy val root = (project in file("."))
       "org.http4s" %% "http4s-dsl" % Http4sVersion,
       "com.lihaoyi" %% "upickle" % "4.1.0",
       "org.tpolecat" %% "skunk-core" % "0.6.4",
+      "org.flywaydb" % "flyway-core" % "11.3.2",
     )
   )
