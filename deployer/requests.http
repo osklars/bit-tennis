@@ -2,15 +2,8 @@
 GET https://api.github.com/repos/osklars/bit-tennis/git/trees/main
 Accept: application/vnd.github.v3+json
 
-// cea01e1b699f7532baeb36423f8915e7ac847071
-
-
 ### Get specific folder tree
 GET https://api.github.com/repos/osklars/bit-tennis/contents?ref=main
-Accept: application/vnd.github.v3+json
-
-### Get specific file
-GET https://api.github.com/repos/owner/repo/contents/folder-name/file.txt?ref=main
 Accept: application/vnd.github.v3+json
 
 ### Github rate limit
