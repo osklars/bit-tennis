@@ -7,25 +7,23 @@ export function FullscreenWrapper({ children }: { children: ReactNode }) {
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     useEffect(() => {
-        // Prevent screen lock if possible
         async function preventScreenLock() {
             try {
-                // @ts-ignore - TypeScript doesn't recognize wakeLock API yet
                 const wakeLock = await navigator.wakeLock.request('screen');
                 return () => wakeLock.release();
             } catch (err) {
-                console.log('Wake Lock not supported');
+                console.log('Wake Lock not supported', err);
             }
         }
         preventScreenLock();
     }, []);
 
-    const toggleFullscreen = () => {
+    const toggleFullscreen = async () => {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
+            await document.documentElement.requestFullscreen();
             setIsFullscreen(true);
         } else {
-            document.exitFullscreen();
+            await document.exitFullscreen();
             setIsFullscreen(false);
         }
     };
